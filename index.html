@@ -71,12 +71,12 @@ canvas{display:block;width:100%;aspect-ratio:1}
     <div class="hint" id="fetchInfo">폐업한 가게가 섞여 있을 수 있어요. 참고용으로 봐주세요.</div>
     <div class="msg" id="msg1" role="alert"></div>
     <details id="keyBox">
-      <summary>카카오 자바스크립트 키 설정</summary>
+      <summary>고급 설정 (다른 카카오 키 사용 / 화면 체험)</summary>
       <div class="row" style="margin-top:8px">
         <input type="text" id="key" placeholder="자바스크립트 키 붙여넣기">
         <button class="sub" id="saveKey" type="button">저장</button>
       </div>
-      <div>키는 이 브라우저에만 저장돼요. 키가 없다면 아래 버튼으로 화면 흐름만 체험할 수 있어요.</div>
+      <div>기본 키가 이미 들어 있어서 따로 입력하지 않아도 돼요. 다른 키를 쓰고 싶을 때만 붙여넣고 저장하세요. (이 브라우저에만 저장돼요)</div>
       <div class="row" style="margin-top:8px"><button class="sub" id="demo" type="button">키 없이 화면 체험 (가상 샘플)</button></div>
     </details>
   </section>
@@ -149,14 +149,16 @@ function setBusy(b){
 /* ---------- 카카오 SDK ---------- */
 const KEY_STORE='kakaoJsKey';
 let kakaoReady=false,kakaoLoading=null;
-function getKey(){try{return localStorage.getItem(KEY_STORE)||''}catch(e){return ''}}
+// 기본 키: 링크만 열어도 바로 지도 기능이 되도록 미리 넣어둔 카카오 JavaScript 키 (등록된 도메인에서만 동작)
+const DEFAULT_KEY='da18b1e1cdc270915134f662db29cb94';
+function getStoredKey(){try{return localStorage.getItem(KEY_STORE)||''}catch(e){return ''}}
+function getKey(){return getStoredKey()||DEFAULT_KEY}
 $('#saveKey').addEventListener('click',()=>{
   const k=$('#key').value.trim();
   try{localStorage.setItem(KEY_STORE,k)}catch(e){}
-  $('#fetchInfo').textContent=k?'키를 저장했어요. 이제 불러오기를 눌러보세요.':'키를 지웠어요.';
+  $('#fetchInfo').textContent=k?'키를 저장했어요. 새로고침 후 불러오기를 눌러보세요.':'직접 넣은 키를 지웠어요. 기본 키로 돌아가요.';
 });
-$('#key').value=getKey();
-if(!getKey())$('#keyBox').open=true;
+$('#key').value=getStoredKey();
 
 function loadKakao(){
   if(kakaoReady)return Promise.resolve();
