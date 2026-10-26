@@ -1,0 +1,911 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>오늘 뭐 먹지? 동네 맛집 룰렛</title>
+<style>
+:root{font-family:system-ui,'Malgun Gothic',sans-serif;--bg:#f5f5fa;--panel:#ffffff;--text:#242b3a;--muted:#697386;--border:#e5e2ef;--soft:#f7f4ff;--chosen:#f1edff;--chosenText:#5132b4;--button:#7253d3;--secondary:#eef0f6;--secondaryText:#32384a;--chip:#edf1f7;--warn:#af3047}
+html[data-theme="dark"]{color-scheme:dark;--bg:#111420;--panel:#1b2030;--text:#edf0fa;--muted:#adb7cc;--border:#3a4359;--soft:#28263e;--chosen:#342c56;--chosenText:#d2c2ff;--button:#9c83f2;--secondary:#33394c;--secondaryText:#edf0fa;--chip:#353d53;--warn:#ff9cae}
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--text)}
+body{margin:0;padding:24px 12px;min-height:100vh;display:flex;justify-content:center;align-items:flex-start}
+.app{width:min(100%,690px);background:var(--panel);color:var(--text);border-radius:22px;box-shadow:0 12px 45px #28223d16;padding:clamp(18px,4vw,32px)}
+.app:has(#final:not(.hidden)){width:min(100%,960px)}
+h1{font-size:clamp(26px,5vw,34px);text-align:center;margin:0 0 8px}
+.subtitle{text-align:center;color:var(--muted);margin:0 0 22px}
+h2{font-size:22px;margin:0 0 8px}
+.desc,.note{color:var(--muted);font-size:14px}
+.desc{margin:0 0 18px}
+.note{margin-top:12px;font-size:13px}
+.progress{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin:16px 0 26px}
+.progress span{text-align:center;padding:9px 1px;border-radius:8px;background:var(--secondary);color:var(--muted);font-size:12px;font-weight:700}
+.progress .active{background:var(--button);color:#fff}
+.progress .done{background:var(--chosen);color:var(--chosenText)}
+.options{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.option{appearance:none;background:var(--panel);border:2px solid var(--border);color:var(--text);padding:22px 12px;border-radius:15px;font:700 18px system-ui,'Malgun Gothic',sans-serif;cursor:pointer}
+.option.selected,.pick-item:has(input:checked){border-color:var(--button);background:var(--chosen);color:var(--chosenText)}
+.option:focus-visible,button:focus-visible{outline:3px solid #facd65;outline-offset:2px}
+.actions{display:flex;gap:10px;margin-top:25px}
+button.action{border:0;background:var(--button);color:#fff;padding:14px 18px;border-radius:12px;cursor:pointer;font:700 15px system-ui,'Malgun Gothic',sans-serif;flex:1}
+button.secondary{background:var(--secondary);color:var(--secondaryText)}
+button:disabled{opacity:.4;cursor:not-allowed}
+.action.compact{flex:none;padding:11px 14px}
+.summary,.pick-all{background:var(--soft);border:1px solid var(--border);padding:14px;border-radius:12px;margin:16px 0;font-size:14px;line-height:1.8}
+.summary strong{color:var(--chosenText)}
+.candidate{border:1px solid var(--border);border-radius:12px;padding:13px;margin:16px 0;max-height:150px;overflow:auto;line-height:2}
+.pick-all{display:flex;align-items:center;gap:9px;margin-top:14px;font-weight:750;cursor:pointer}
+.pick-all input,.pick-item input{width:19px;height:19px;accent-color:var(--button)}
+.pick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:14px;max-height:460px;overflow:auto;padding:2px}
+.pick-item{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:12px;border:2px solid var(--border);border-radius:12px;cursor:pointer;font-weight:650;position:relative}
+.pick-item>.nm{flex:1;min-width:0;overflow-wrap:anywhere}
+.favbtn{font-size:19px;background:transparent;border:0;color:#e29c20;cursor:pointer;padding:4px 8px}
+.foodmeta{font-size:11px;color:var(--muted);width:100%;font-weight:500}
+.chip{display:inline-block;font-size:12px;padding:3px 9px;border-radius:20px;background:var(--chip);color:var(--text);margin:3px}
+.wheel-wrap{width:min(100%,340px);margin:22px auto;position:relative}
+.pointer{position:absolute;top:-3px;left:50%;transform:translateX(-50%);border-left:14px solid transparent;border-right:14px solid transparent;border-top:30px solid #252939;z-index:2}
+canvas{width:100%;height:auto;display:block}
+#result{font-size:21px;font-weight:800;text-align:center;background:var(--soft);color:var(--chosenText);border-radius:12px;padding:18px 10px;min-height:64px}
+#result .info,.surprise .info{font-size:14px;font-weight:500;color:var(--muted);margin-top:6px}
+.links{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:8px}
+.links a{font-size:14px;font-weight:700;color:var(--chosenText)}
+#map{width:100%;height:220px;border-radius:12px;margin-top:12px}
+#message,#pickMessage,.msg{color:var(--warn);min-height:18px;font-size:13px}
+#message{text-align:center}
+.omakase{margin-top:18px;width:100%;border:2px solid #e0c76d;border-radius:15px;padding:17px 14px;background:#fff8df;color:#59420d;font:800 18px system-ui,sans-serif;cursor:pointer}
+.omakase small{display:block;margin-top:5px;font-size:12px;font-weight:500}
+html[data-theme="dark"] .omakase{background:#42351e;border-color:#8d7335;color:#ffe6aa}
+.surprise{font-size:clamp(26px,6vw,38px);text-align:center;font-weight:850;color:var(--chosenText);margin:22px 0;padding:22px 12px;background:var(--soft);border-radius:16px}
+.hidden{display:none!important}
+.theme-bar{display:flex;justify-content:flex-end;margin-bottom:10px}
+.theme-toggle{display:flex;align-items:center;gap:9px;cursor:pointer;color:var(--text);font-size:13px;font-weight:700}
+.theme-toggle input{position:absolute;opacity:0;width:1px;height:1px}
+.track{width:43px;height:25px;border-radius:20px;background:#b7bed0;position:relative;transition:background .2s}
+.track:before{content:'';position:absolute;width:19px;height:19px;border-radius:50%;background:#fff;left:3px;top:3px;transition:transform .2s}
+.theme-toggle input:checked+.track{background:var(--button)}
+.theme-toggle input:checked+.track:before{transform:translateX(18px)}
+.theme-toggle input:focus-visible+.track{outline:3px solid #facd65;outline-offset:3px}
+.roulette-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(205px,260px);gap:20px;align-items:start}
+.history-panel{border:1px solid var(--border);border-radius:15px;padding:16px;background:var(--soft);margin-top:18px}
+.history-panel h3{margin:0 0 6px;font-size:18px}
+.history-count{color:var(--muted);font-size:13px;margin-bottom:12px}
+.history-list{margin:0;padding-left:30px;max-height:430px;overflow:auto;line-height:1.75}
+.history-list li{padding:7px 4px;border-bottom:1px solid var(--border);overflow-wrap:anywhere;font-weight:650}
+.history-list li:last-child{border-bottom:0}
+.history-empty{font-size:14px;color:var(--muted);line-height:1.5}
+.history-tools{display:flex;flex-direction:column;gap:7px;margin:12px 0}
+.history-tools button{font-size:12px;padding:9px;border-radius:8px;border:1px solid var(--border);color:var(--text);background:var(--panel);cursor:pointer}
+.food-detail{padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--soft);margin:12px 0;line-height:1.8;font-size:14px}
+.toolrow{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0}
+.toolrow input,.toolrow select,.field{padding:11px;border:1px solid var(--border);border-radius:9px;background:var(--panel);color:var(--text);max-width:100%;flex:1;min-width:125px;font:inherit}
+.toolrow input[type=checkbox]{flex:none;min-width:0}
+.fav-only{display:flex;align-items:center;gap:5px;font-size:13px}
+.where{font-weight:700;color:var(--chosenText);background:var(--soft);border-radius:10px;padding:9px 12px;margin:0 0 16px;font-size:14px}
+button.sub{border:0;background:var(--secondary);color:var(--secondaryText);padding:11px 14px;border-radius:9px;font:700 14px system-ui,'Malgun Gothic',sans-serif;cursor:pointer;white-space:nowrap}
+@media(max-width:650px){.roulette-layout{grid-template-columns:1fr}.history-panel{margin-top:2px}.history-list{max-height:250px}}
+@media(max-width:430px){.option{padding:18px 6px;font-size:17px}.progress span{font-size:10px}.pick-grid{grid-template-columns:1fr}}
+</style></head><body><main class="app">
+<div class="theme-bar"><label class="theme-toggle" for="darkMode"><span id="themeLabel">☀️ 라이트 모드</span><input id="darkMode" type="checkbox" role="switch" aria-label="다크 모드 켜기"><span class="track" aria-hidden="true"></span></label></div>
+<h1>🍽️ 오늘 뭐 먹지?</h1><p class="subtitle">장소를 정하고 → 취향으로 좁히고 → 룰렛에 맡기기</p>
+<div class="progress" id="progress"><span>1. 장소</span><span>2. 테마</span><span>3. 맵기</span><span>4. 형태</span><span>5. 온도</span><span>6. 후보</span><span>7. 룰렛</span></div>
+
+<!-- 0. 장소 -->
+<section id="locate">
+  <h2>📍 어디서 먹을까요?</h2>
+  <p class="desc">지역을 입력하면 주변 음식점을 불러와요. 이후 취향을 골라 후보를 좁혀갑니다.</p>
+  <div class="toolrow"><input type="text" class="field" id="region" placeholder="지역 입력 (예: 천안 불당동)" aria-label="지역"><button class="sub" id="gps" type="button">내 위치</button></div>
+  <div class="toolrow"><select class="field" id="radius" aria-label="반경"><option value="500">반경 500m</option><option value="1000" selected>반경 1km</option><option value="2000">반경 2km</option></select><button class="action" id="fetch" type="button">주변 음식점 불러오기</button></div>
+  <p class="note" id="fetchInfo">폐업한 가게가 섞여 있을 수 있어요. 참고용으로 봐주세요.</p>
+  <div class="msg" id="msg1" role="alert"></div>
+  <button class="action secondary hidden" id="useLoaded" type="button" style="width:100%;margin-top:8px"></button>
+  <div class="toolrow"><button class="sub" id="menuMode" type="button">📖 위치 없이 메뉴 이름으로 고르기</button><button class="sub" id="demo" type="button">화면 체험 (가상 샘플)</button></div>
+</section>
+
+<!-- 1~4. 질문 -->
+<section id="question" class="hidden"><div class="where" id="where"></div><h2 id="title"></h2><p class="desc" id="description"></p><div class="options" id="options"></div><button id="omakaseStart" class="omakase hidden" type="button">🎁 오마카세 — 알아서 골라줘!<small>조건 없이 전체에서 딱 하나 추천받기</small></button><p class="note" id="hint"></p><div class="actions"><button class="action secondary" id="back">이전 단계</button><button class="action" id="next">다음 단계 →</button></div></section>
+
+<!-- 5. 후보 -->
+<section id="pick" class="hidden"><h2 id="pickTitle">✅ 룰렛에 넣을 후보를 골라주세요</h2><p class="desc" id="pickDesc"></p><div class="summary" id="pickSummary"></div>
+<div class="toolrow"><input type="search" id="foodSearch" placeholder="🔍 후보 검색" aria-label="후보 검색"><select id="budgetFilter" aria-label="예산 필터"><option value="전체">예산 상관없음</option><option value="저렴">가벼운 예산</option><option value="보통">보통 예산</option><option value="넉넉">넉넉한 예산</option></select><label class="fav-only"><input type="checkbox" id="favoritesOnly"> 즐겨찾기만 보기</label></div>
+<p class="note" id="budgetNote">예산은 메뉴 종류별 참고 분류이며 실제 판매 가격과 다를 수 있어요.</p>
+<div id="pickCount" class="note" aria-live="polite"></div>
+<button class="action secondary" type="button" id="rerollCandidates" style="width:100%;margin-top:12px">🔄 같은 조건으로 다시 추천</button>
+<label class="pick-all"><input type="checkbox" id="pickAll"> <span>보이는 후보 전체 선택</span></label>
+<div class="pick-grid" id="pickList"></div><div id="visibleCount" class="note"></div>
+<div class="toolrow"><input type="text" id="custom" placeholder="목록에 없는 후보 직접 추가" aria-label="직접 추가"><button class="sub" id="addCustom" type="button">추가</button></div>
+<div id="pickMessage" class="note" role="status"></div>
+<div class="actions"><button class="action secondary" id="pickBack">이전 단계</button><button class="action" id="pickNext">선택한 후보로 룰렛 →</button></div></section>
+
+<!-- 오마카세 -->
+<section id="surprise" class="hidden"><h2>🎁 오마카세 추천</h2><p class="desc">전체 중 무작위로 하나를 골랐어요!</p><div class="surprise" id="surpriseFood" aria-live="polite"></div><div class="actions"><button class="action secondary" id="surpriseHome">처음으로</button><button class="action" id="surpriseAgain">🎲 다시 추천받기</button></div></section>
+
+<!-- 룰렛 -->
+<section id="final" class="hidden"><h2>🎯 오늘의 메뉴를 골라볼까요?</h2><div class="summary" id="summary"></div><div class="candidate" id="candidate"></div>
+<div class="roulette-layout"><div class="roulette-main">
+<div class="wheel-wrap"><div class="pointer"></div><canvas id="wheel" width="640" height="640" aria-label="룰렛"></canvas></div>
+<button class="action" id="spin" style="width:100%">🎲 룰렛 돌리기!</button>
+<div id="result" aria-live="polite">어떤 메뉴가 나올까요?</div>
+<div id="map" class="hidden"></div>
+<div class="food-detail hidden" id="foodDetail"></div>
+<div class="toolrow"><button class="action secondary compact" id="shareResult" type="button">📋 결과 복사 / 공유</button><button class="action secondary compact" id="favoriteResult" type="button">☆ 결과 즐겨찾기</button></div>
+<div id="message" role="alert"></div></div>
+<aside class="history-panel" aria-label="지금까지 나온 결과"><h3>📋 추첨 기록</h3><div class="history-count" id="historyCount">총 0회</div><p class="history-empty" id="historyEmpty">룰렛을 돌리면 결과가 순서대로 기록돼요.</p><ol class="history-list" id="historyList" aria-live="polite"></ol>
+<div class="history-tools"><label><input type="checkbox" id="avoidRepeat" checked> 이전 당첨 자동 제외</label><button id="clearHistory" type="button">🗑️ 추첨 기록 초기화</button><small id="remainingInfo"></small></div></aside></div>
+<div class="actions"><button class="action secondary" id="edit">후보 다시 고르기</button><button class="action secondary" id="reset">처음부터 시작</button></div></section>
+</main>
+<script>
+const $=q=>document.querySelector(q);
+const canvas=$('#wheel'),ctx=canvas.getContext('2d');
+
+/* ===== 메뉴 이름 데이터 (위치 없이 고르기용) ===== */
+const foods = [
+['김치찌개','한식','매움','밥','뜨거움'],['된장찌개','한식','순함','밥','뜨거움'],['제육덮밥','한식','매움','밥','뜨거움'],['불고기덮밥','한식','순함','밥','뜨거움'],['비빔밥','한식','매움','밥','뜨거움'],['돌솥비빔밥','한식','매움','밥','뜨거움'],['순두부찌개','한식','매움','밥','뜨거움'],['갈비탕','한식','순함','밥','뜨거움'],['설렁탕','한식','순함','밥','뜨거움'],['삼계탕','한식','순함','밥','뜨거움'],['육개장','한식','매움','밥','뜨거움'],['콩나물국밥','한식','순함','밥','뜨거움'],['소고기국밥','한식','순함','밥','뜨거움'],['김치볶음밥','한식','매움','밥','뜨거움'],['계란볶음밥','한식','순함','밥','뜨거움'],['냉면','한식','순함','면','차가움'],['비빔냉면','한식','매움','면','차가움'],['콩국수','한식','순함','면','차가움'],['잔치국수','한식','순함','면','뜨거움'],['칼국수','한식','순함','면','뜨거움'],['비빔국수','한식','매움','면','차가움'],['열무국수','한식','매움','면','차가움'],['장칼국수','한식','매움','면','뜨거움'],
+['짜장면','중식','순함','면','뜨거움'],['짬뽕','중식','매움','면','뜨거움'],['볶음짬뽕','중식','매움','면','뜨거움'],['우육면','중식','순함','면','뜨거움'],['마라탕면','중식','매움','면','뜨거움'],['탄탄면','중식','매움','면','뜨거움'],['중화냉면','중식','순함','면','차가움'],['볶음밥','중식','순함','밥','뜨거움'],['마파두부덮밥','중식','매움','밥','뜨거움'],['고추잡채덮밥','중식','매움','밥','뜨거움'],['새우볶음밥','중식','순함','밥','뜨거움'],['게살볶음밥','중식','순함','밥','뜨거움'],['유산슬덮밥','중식','순함','밥','뜨거움'],['잡채밥','중식','순함','밥','뜨거움'],
+['초밥','일식','순함','밥','차가움'],['연어덮밥','일식','순함','밥','차가움'],['참치덮밥','일식','순함','밥','차가움'],['가츠동','일식','순함','밥','뜨거움'],['규동','일식','순함','밥','뜨거움'],['오야코동','일식','순함','밥','뜨거움'],['일본식 카레라이스','일식','순함','밥','뜨거움'],['매운 카레라이스','일식','매움','밥','뜨거움'],['오니기리','일식','순함','밥','차가움'],['돈코츠라멘','일식','순함','면','뜨거움'],['미소라멘','일식','순함','면','뜨거움'],['매운 라멘','일식','매움','면','뜨거움'],['우동','일식','순함','면','뜨거움'],['냉우동','일식','순함','면','차가움'],['자루소바','일식','순함','면','차가움'],['야키소바','일식','순함','면','뜨거움'],['카레우동','일식','순함','면','뜨거움'],['매운 야키우동','일식','매움','면','뜨거움'],['가츠샌드','일식','순함','빵','차가움'],['계란산도','일식','순함','빵','차가움'],
+['치즈버거','패스트푸드·분식','순함','빵','뜨거움'],['치킨버거','패스트푸드·분식','순함','빵','뜨거움'],['핫도그','패스트푸드·분식','순함','빵','뜨거움'],['피자','패스트푸드·분식','순함','빵','뜨거움'],['페퍼로니 피자','패스트푸드·분식','순함','빵','뜨거움'],['할라피뇨 피자','패스트푸드·분식','매움','빵','뜨거움'],['파니니','양식','순함','빵','뜨거움'],['크로크무슈','양식','순함','빵','뜨거움'],['클럽샌드위치','양식','순함','빵','차가움'],['에그샌드위치','양식','순함','빵','차가움'],['햄치즈샌드위치','양식','순함','빵','차가움'],['매운 치킨샌드위치','양식','매움','빵','차가움'],['토마토 파스타','양식','순함','면','뜨거움'],['크림 파스타','양식','순함','면','뜨거움'],['알리오 올리오','양식','순함','면','뜨거움'],['아라비아타','양식','매움','면','뜨거움'],['매운 해산물 파스타','양식','매움','면','뜨거움'],['바질 페스토 파스타','양식','순함','면','뜨거움'],['콜드 파스타','양식','순함','면','차가움'],['매운 콜드 파스타','양식','매움','면','차가움'],['리소토','양식','순함','밥','뜨거움'],['해산물 리소토','양식','순함','밥','뜨거움'],['매운 토마토 리소토','양식','매움','밥','뜨거움'],['치킨 라이스','양식','순함','밥','뜨거움']
+
+,['불고기버거','패스트푸드·분식','순함','빵','뜨거움']
+,['새우버거','패스트푸드·분식','순함','빵','뜨거움']
+,['매운 치킨버거','패스트푸드·분식','매움','빵','뜨거움']
+,['더블치즈버거','패스트푸드·분식','순함','빵','뜨거움']
+,['치킨텐더랩','패스트푸드·분식','순함','빵','뜨거움']
+,['고구마 피자','패스트푸드·분식','순함','빵','뜨거움']
+,['불고기 피자','패스트푸드·분식','순함','빵','뜨거움']
+,['콤비네이션 피자','패스트푸드·분식','순함','빵','뜨거움']
+,['바비큐 치킨 피자','패스트푸드·분식','순함','빵','뜨거움']
+,['양념치킨','패스트푸드·분식','매움','기타','뜨거움']
+,['후라이드치킨','패스트푸드·분식','순함','기타','뜨거움']
+,['간장치킨','패스트푸드·분식','순함','기타','뜨거움']
+,['매운 양념치킨','패스트푸드·분식','매움','기타','뜨거움']
+,['순살치킨','패스트푸드·분식','순함','기타','뜨거움']
+,['떡볶이','패스트푸드·분식','매움','기타','뜨거움']
+,['로제떡볶이','패스트푸드·분식','매움','기타','뜨거움']
+,['궁중떡볶이','패스트푸드·분식','순함','기타','뜨거움']
+,['라볶이','패스트푸드·분식','매움','면','뜨거움']
+,['치즈라볶이','패스트푸드·분식','매움','면','뜨거움']
+,['김밥','패스트푸드·분식','순함','밥','차가움']
+,['참치김밥','패스트푸드·분식','순함','밥','차가움']
+,['치즈김밥','패스트푸드·분식','순함','밥','차가움']
+,['매운김밥','패스트푸드·분식','매움','밥','차가움']
+,['주먹밥','패스트푸드·분식','순함','밥','차가움']
+,['컵밥','패스트푸드·분식','순함','밥','뜨거움']
+,['순대','패스트푸드·분식','순함','기타','뜨거움']
+,['모둠튀김','패스트푸드·분식','순함','기타','뜨거움']
+,['어묵꼬치','패스트푸드·분식','순함','기타','뜨거움']
+,['감자튀김','패스트푸드·분식','순함','기타','뜨거움']
+,['치즈스틱','패스트푸드·분식','순함','기타','뜨거움']
+
+,['닭갈비','한식','매움','밥','뜨거움']
+,['오징어볶음','한식','매움','밥','뜨거움']
+,['낙지볶음','한식','매움','밥','뜨거움']
+,['쭈꾸미볶음','한식','매움','밥','뜨거움']
+,['돼지김치찜','한식','매움','밥','뜨거움']
+,['김치찜','한식','매움','밥','뜨거움']
+,['부대찌개','한식','매움','밥','뜨거움']
+,['뼈해장국','한식','매움','밥','뜨거움']
+,['감자탕','한식','매움','밥','뜨거움']
+,['매운갈비찜','한식','매움','밥','뜨거움']
+,['고추장불고기','한식','매움','밥','뜨거움']
+,['닭볶음탕','한식','매움','밥','뜨거움']
+,['얼큰소고기뭇국','한식','매움','밥','뜨거움']
+,['매운돼지국밥','한식','매움','밥','뜨거움']
+,['불닭덮밥','한식','매움','밥','뜨거움']
+,['두부김치','한식','매움','밥','뜨거움']
+,['돼지국밥','한식','순함','밥','뜨거움']
+,['순대국밥','한식','순함','밥','뜨거움']
+,['미역국','한식','순함','밥','뜨거움']
+,['떡국','한식','순함','밥','뜨거움']
+,['만둣국','한식','순함','밥','뜨거움']
+,['사골곰탕','한식','순함','밥','뜨거움']
+,['소불고기','한식','순함','밥','뜨거움']
+,['갈비찜','한식','순함','밥','뜨거움']
+,['수육','한식','순함','밥','뜨거움']
+,['보쌈','한식','순함','밥','뜨거움']
+,['족발','한식','순함','밥','뜨거움']
+,['찜닭','한식','순함','밥','뜨거움']
+,['고등어구이','한식','순함','밥','뜨거움']
+,['삼치구이','한식','순함','밥','뜨거움']
+,['생선구이백반','한식','순함','밥','뜨거움']
+,['계란찜','한식','순함','밥','뜨거움']
+,['간장게장정식','한식','순함','밥','뜨거움']
+,['전복죽','한식','순함','밥','뜨거움']
+,['야채죽','한식','순함','밥','뜨거움']
+,['버섯전골','한식','순함','밥','뜨거움']
+,['샤브샤브','한식','순함','밥','뜨거움']
+,['청국장','한식','순함','밥','뜨거움']
+,['차돌된장찌개','한식','순함','밥','뜨거움']
+,['김치전','한식','순함','밥','뜨거움']
+,['해물파전','한식','순함','밥','뜨거움']
+,['감자전','한식','순함','밥','뜨거움']
+,['소고기미역국','한식','순함','밥','뜨거움']
+,['오므라이스','한식','순함','밥','뜨거움']
+,['꼬막비빔밥','한식','순함','밥','뜨거움']
+,['묵사발','한식','순함','밥','차가움']
+,['도토리묵밥','한식','순함','밥','차가움']
+,['냉국밥','한식','순함','밥','차가움']
+,['유부초밥','한식','순함','밥','차가움']
+,['나물비빔밥','한식','순함','밥','차가움']
+,['참치주먹밥','한식','순함','밥','차가움']
+,['회덮밥','한식','매움','밥','차가움']
+,['매콤참치주먹밥','한식','매움','밥','차가움']
+,['열무비빔밥','한식','매움','밥','차가움']
+,['수제비','한식','순함','면','뜨거움']
+,['들깨칼국수','한식','순함','면','뜨거움']
+,['바지락칼국수','한식','순함','면','뜨거움']
+,['닭칼국수','한식','순함','면','뜨거움']
+,['사골칼국수','한식','순함','면','뜨거움']
+,['멸치국수','한식','순함','면','뜨거움']
+,['어묵국수','한식','순함','면','뜨거움']
+,['들깨수제비','한식','순함','면','뜨거움']
+,['사골떡만둣국','한식','순함','면','뜨거움']
+,['김치칼국수','한식','매움','면','뜨거움']
+,['얼큰칼국수','한식','매움','면','뜨거움']
+,['얼큰수제비','한식','매움','면','뜨거움']
+,['매운해물칼국수','한식','매움','면','뜨거움']
+,['비빔당면','한식','매움','면','뜨거움']
+,['물막국수','한식','순함','면','차가움']
+,['물회국수','한식','순함','면','차가움']
+,['냉모밀','한식','순함','면','차가움']
+,['초계국수','한식','순함','면','차가움']
+,['동치미국수','한식','순함','면','차가움']
+,['메밀국수','한식','순함','면','차가움']
+,['비빔막국수','한식','매움','면','차가움']
+,['매운물냉면','한식','매움','면','차가움']
+,['골뱅이소면','한식','매움','면','차가움']
+,['매운초계국수','한식','매움','면','차가움']
+,['쫄면','한식','매움','면','차가움']
+,['계란말이','한식','순함','기타','뜨거움']
+,['두부부침','한식','순함','기타','뜨거움']
+,['해물찜','한식','순함','기타','뜨거움']
+,['아귀찜','한식','순함','기타','뜨거움']
+,['불고기전골','한식','순함','기타','뜨거움']
+,['떡갈비','한식','순함','기타','뜨거움']
+,['삼겹살구이','한식','순함','기타','뜨거움']
+,['목살구이','한식','순함','기타','뜨거움']
+,['오리로스구이','한식','순함','기타','뜨거움']
+,['매운닭발','한식','매움','기타','뜨거움']
+,['불족발','한식','매움','기타','뜨거움']
+,['매운돼지껍데기','한식','매움','기타','뜨거움']
+,['매운곱창볶음','한식','매움','기타','뜨거움']
+,['매운오돌뼈','한식','매움','기타','뜨거움']
+,['도토리묵무침','한식','순함','기타','차가움']
+,['오이냉국','한식','순함','기타','차가움']
+,['냉채족발','한식','순함','기타','차가움']
+,['간짜장','중식','순함','면','뜨거움']
+,['삼선짜장','중식','순함','면','뜨거움']
+,['유니짜장','중식','순함','면','뜨거움']
+,['볶음우동','중식','순함','면','뜨거움']
+,['완탕면','중식','순함','면','뜨거움']
+,['굴소스볶음면','중식','순함','면','뜨거움']
+,['중국식계란면','중식','순함','면','뜨거움']
+,['홍콩식완탕면','중식','순함','면','뜨거움']
+,['사천짜장','중식','매움','면','뜨거움']
+,['고추짬뽕','중식','매움','면','뜨거움']
+,['마라샹궈면','중식','매움','면','뜨거움']
+,['매운우육면','중식','매움','면','뜨거움']
+,['사천볶음면','중식','매움','면','뜨거움']
+,['마라비빔면','중식','매움','면','뜨거움']
+,['중국식냉면','중식','순함','면','차가움']
+,['땅콩소스냉면','중식','순함','면','차가움']
+,['냉탄탄면','중식','순함','면','차가움']
+,['사천식냉면','중식','매움','면','차가움']
+,['매운냉탄탄면','중식','매움','면','차가움']
+,['중국식덮밥','중식','순함','밥','뜨거움']
+,['동파육덮밥','중식','순함','밥','뜨거움']
+,['차슈볶음밥','중식','순함','밥','뜨거움']
+,['굴소스소고기덮밥','중식','순함','밥','뜨거움']
+,['계란토마토덮밥','중식','순함','밥','뜨거움']
+,['새우계란덮밥','중식','순함','밥','뜨거움']
+,['XO볶음밥','중식','순함','밥','뜨거움']
+,['팔보채덮밥','중식','순함','밥','뜨거움']
+,['사천식마파두부밥','중식','매움','밥','뜨거움']
+,['마라볶음밥','중식','매움','밥','뜨거움']
+,['깐풍기덮밥','중식','매움','밥','뜨거움']
+,['매운가지덮밥','중식','매움','밥','뜨거움']
+,['고추기름볶음밥','중식','매움','밥','뜨거움']
+,['탕수육','중식','순함','기타','뜨거움']
+,['꿔바로우','중식','순함','기타','뜨거움']
+,['유린기','중식','순함','기타','뜨거움']
+,['깐쇼새우','중식','순함','기타','뜨거움']
+,['크림새우','중식','순함','기타','뜨거움']
+,['딤섬','중식','순함','기타','뜨거움']
+,['샤오롱바오','중식','순함','기타','뜨거움']
+,['고기만두','중식','순함','기타','뜨거움']
+,['새우하가우','중식','순함','기타','뜨거움']
+,['동파육','중식','순함','기타','뜨거움']
+,['팔보채','중식','순함','기타','뜨거움']
+,['유산슬','중식','순함','기타','뜨거움']
+,['춘권','중식','순함','기타','뜨거움']
+,['고기완자','중식','순함','기타','뜨거움']
+,['새우완자','중식','순함','기타','뜨거움']
+,['깐풍기','중식','매움','기타','뜨거움']
+,['마라탕','중식','매움','기타','뜨거움']
+,['마라샹궈','중식','매움','기타','뜨거움']
+,['사천식라즈지','중식','매움','기타','뜨거움']
+,['매운마파두부','중식','매움','기타','뜨거움']
+,['사천식닭볶음','중식','매움','기타','뜨거움']
+,['매운칠리새우','중식','매움','기타','뜨거움']
+,['고기호빵','중식','순함','빵','뜨거움']
+,['차슈바오','중식','순함','빵','뜨거움']
+,['중국식꽃빵','중식','순함','빵','뜨거움']
+,['오향장육냉채','중식','순함','기타','차가움']
+,['해파리냉채','중식','순함','기타','차가움']
+,['마라오이무침','중식','매움','기타','차가움']
+,['사천식냉채','중식','매움','기타','차가움']
+,['텐동','일식','순함','밥','뜨거움']
+,['새우튀김덮밥','일식','순함','밥','뜨거움']
+,['연어구이정식','일식','순함','밥','뜨거움']
+,['고등어구이정식','일식','순함','밥','뜨거움']
+,['돈카츠정식','일식','순함','밥','뜨거움']
+,['치킨가라아게정식','일식','순함','밥','뜨거움']
+,['가라아게동','일식','순함','밥','뜨거움']
+,['장어덮밥','일식','순함','밥','뜨거움']
+,['차슈덮밥','일식','순함','밥','뜨거움']
+,['일본식오므라이스','일식','순함','밥','뜨거움']
+,['명란오차즈케','일식','순함','밥','뜨거움']
+,['오차즈케','일식','순함','밥','뜨거움']
+,['야키토리덮밥','일식','순함','밥','뜨거움']
+,['소보로동','일식','순함','밥','뜨거움']
+,['매운가츠동','일식','매움','밥','뜨거움']
+,['매운규동','일식','매움','밥','뜨거움']
+,['매운텐동','일식','매움','밥','뜨거움']
+,['매운참치덮밥','일식','매움','밥','뜨거움']
+,['연어초밥','일식','순함','밥','차가움']
+,['광어초밥','일식','순함','밥','차가움']
+,['장어초밥','일식','순함','밥','차가움']
+,['참치초밥','일식','순함','밥','차가움']
+,['후토마키','일식','순함','밥','차가움']
+,['연어포케','일식','순함','밥','차가움']
+,['참치포케','일식','순함','밥','차가움']
+,['새우초밥','일식','순함','밥','차가움']
+,['치라시스시','일식','순함','밥','차가움']
+,['매운참치롤','일식','매움','밥','차가움']
+,['스파이시연어롤','일식','매움','밥','차가움']
+,['매운참치포케','일식','매움','밥','차가움']
+,['쇼유라멘','일식','순함','면','뜨거움']
+,['시오라멘','일식','순함','면','뜨거움']
+,['츠케멘','일식','순함','면','뜨거움']
+,['키츠네우동','일식','순함','면','뜨거움']
+,['니꾸우동','일식','순함','면','뜨거움']
+,['튀김우동','일식','순함','면','뜨거움']
+,['나베야키우동','일식','순함','면','뜨거움']
+,['볶음소바','일식','순함','면','뜨거움']
+,['일본식카레라멘','일식','순함','면','뜨거움']
+,['카라미소라멘','일식','매움','면','뜨거움']
+,['매운돈코츠라멘','일식','매움','면','뜨거움']
+,['탄탄라멘','일식','매움','면','뜨거움']
+,['매운우동','일식','매움','면','뜨거움']
+,['매운츠케멘','일식','매움','면','뜨거움']
+,['냉소바','일식','순함','면','차가움']
+,['붓카케우동','일식','순함','면','차가움']
+,['냉라멘','일식','순함','면','차가움']
+,['차가운메밀소바','일식','순함','면','차가움']
+,['히야시츄카','일식','순함','면','차가움']
+,['매운냉소바','일식','매움','면','차가움']
+,['매운냉우동','일식','매움','면','차가움']
+,['매운히야시츄카','일식','매움','면','차가움']
+,['돈카츠','일식','순함','기타','뜨거움']
+,['치즈돈카츠','일식','순함','기타','뜨거움']
+,['새우튀김','일식','순함','기타','뜨거움']
+,['가라아게','일식','순함','기타','뜨거움']
+,['오코노미야키','일식','순함','기타','뜨거움']
+,['타코야키','일식','순함','기타','뜨거움']
+,['야키토리','일식','순함','기타','뜨거움']
+,['일본식교자','일식','순함','기타','뜨거움']
+,['고로케','일식','순함','기타','뜨거움']
+,['스키야키','일식','순함','기타','뜨거움']
+,['일본식샤브샤브','일식','순함','기타','뜨거움']
+,['매운오코노미야키','일식','매움','기타','뜨거움']
+,['매운야키토리','일식','매움','기타','뜨거움']
+,['매운교자','일식','매움','기타','뜨거움']
+,['과일산도','일식','순함','빵','차가움']
+,['참치산도','일식','순함','빵','차가움']
+,['햄카츠샌드','일식','순함','빵','차가움']
+,['치아바타샌드위치','양식','순함','빵','뜨거움']
+,['바게트샌드위치','양식','순함','빵','뜨거움']
+,['프렌치토스트','양식','순함','빵','뜨거움']
+,['에그베네딕트','양식','순함','빵','뜨거움']
+,['그릴드치즈샌드위치','양식','순함','빵','뜨거움']
+,['미트볼서브','양식','순함','빵','뜨거움']
+,['치킨파니니','양식','순함','빵','뜨거움']
+,['베이컨에그샌드위치','양식','순함','빵','뜨거움']
+,['브루스케타','양식','순함','빵','뜨거움']
+,['할라피뇨그릴드치즈','양식','매움','빵','뜨거움']
+,['매운미트볼서브','양식','매움','빵','뜨거움']
+,['스파이시파니니','양식','매움','빵','뜨거움']
+,['BLT샌드위치','양식','순함','빵','차가움']
+,['카프레제샌드위치','양식','순함','빵','차가움']
+,['크루아상샌드위치','양식','순함','빵','차가움']
+,['바게트햄샌드위치','양식','순함','빵','차가움']
+,['참치샌드위치','양식','순함','빵','차가움']
+,['까르보나라','양식','순함','면','뜨거움']
+,['봉골레파스타','양식','순함','면','뜨거움']
+,['라자냐','양식','순함','면','뜨거움']
+,['볼로네제파스타','양식','순함','면','뜨거움']
+,['로제파스타','양식','순함','면','뜨거움']
+,['해산물오일파스타','양식','순함','면','뜨거움']
+,['트러플크림파스타','양식','순함','면','뜨거움']
+,['버섯크림파스타','양식','순함','면','뜨거움']
+,['맥앤치즈','양식','순함','면','뜨거움']
+,['버터갈릭파스타','양식','순함','면','뜨거움']
+,['뇨끼','양식','순함','면','뜨거움']
+,['해산물토마토파스타','양식','순함','면','뜨거움']
+,['매운로제파스타','양식','매움','면','뜨거움']
+,['디아볼라파스타','양식','매움','면','뜨거움']
+,['매운까르보나라','양식','매움','면','뜨거움']
+,['칠리오일파스타','양식','매움','면','뜨거움']
+,['매운볼로네제파스타','양식','매움','면','뜨거움']
+,['바질콜드파스타','양식','순함','면','차가움']
+,['레몬콜드파스타','양식','순함','면','차가움']
+,['차가운토마토파스타','양식','순함','면','차가움']
+,['버섯리소토','양식','순함','밥','뜨거움']
+,['트러플리소토','양식','순함','밥','뜨거움']
+,['크림리소토','양식','순함','밥','뜨거움']
+,['토마토리소토','양식','순함','밥','뜨거움']
+,['치킨리소토','양식','순함','밥','뜨거움']
+,['빠에야','양식','순함','밥','뜨거움']
+,['해산물빠에야','양식','순함','밥','뜨거움']
+,['오븐치즈라이스','양식','순함','밥','뜨거움']
+,['매운해산물리소토','양식','매움','밥','뜨거움']
+,['칠리치킨라이스','양식','매움','밥','뜨거움']
+,['매운빠에야','양식','매움','밥','뜨거움']
+,['함박스테이크','양식','순함','기타','뜨거움']
+,['비프스테이크','양식','순함','기타','뜨거움']
+,['폭립','양식','순함','기타','뜨거움']
+,['바비큐립','양식','순함','기타','뜨거움']
+,['로스트치킨','양식','순함','기타','뜨거움']
+,['그라탱','양식','순함','기타','뜨거움']
+,['미트볼','양식','순함','기타','뜨거움']
+,['소시지플래터','양식','순함','기타','뜨거움']
+,['피시앤칩스','양식','순함','기타','뜨거움']
+,['치킨커틀릿','양식','순함','기타','뜨거움']
+,['콘수프','양식','순함','기타','뜨거움']
+,['양송이스프','양식','순함','기타','뜨거움']
+,['감자수프','양식','순함','기타','뜨거움']
+,['치킨스테이크','양식','순함','기타','뜨거움']
+,['핫윙플래터','양식','매움','기타','뜨거움']
+,['매운바비큐립','양식','매움','기타','뜨거움']
+,['칠리미트볼','양식','매움','기타','뜨거움']
+,['그릭샐러드','양식','순함','기타','차가움']
+,['시저샐러드','양식','순함','기타','차가움']
+,['카프레제샐러드','양식','순함','기타','차가움']
+,['콥샐러드','양식','순함','기타','차가움']
+,['치킨샐러드','양식','순함','기타','차가움']
+,['연어샐러드','양식','순함','기타','차가움']
+,['베이컨치즈버거','패스트푸드·분식','순함','빵','뜨거움']
+,['에그버거','패스트푸드·분식','순함','빵','뜨거움']
+,['와퍼스타일버거','패스트푸드·분식','순함','빵','뜨거움']
+,['치킨필렛버거','패스트푸드·분식','순함','빵','뜨거움']
+,['데리야끼버거','패스트푸드·분식','순함','빵','뜨거움']
+,['모짜렐라버거','패스트푸드·분식','순함','빵','뜨거움']
+,['토스트샌드위치','패스트푸드·분식','순함','빵','뜨거움']
+,['길거리토스트','패스트푸드·분식','순함','빵','뜨거움']
+,['소시지핫도그','패스트푸드·분식','순함','빵','뜨거움']
+,['치즈핫도그','패스트푸드·분식','순함','빵','뜨거움']
+,['콘도그','패스트푸드·분식','순함','빵','뜨거움']
+,['불고기또띠아','패스트푸드·분식','순함','빵','뜨거움']
+,['고르곤졸라피자','패스트푸드·분식','순함','빵','뜨거움']
+,['포테이토피자','패스트푸드·분식','순함','빵','뜨거움']
+,['치즈피자','패스트푸드·분식','순함','빵','뜨거움']
+,['하와이안피자','패스트푸드·분식','순함','빵','뜨거움']
+,['베이컨포테이토피자','패스트푸드·분식','순함','빵','뜨거움']
+,['새우피자','패스트푸드·분식','순함','빵','뜨거움']
+,['스파이시치킨버거','패스트푸드·분식','매움','빵','뜨거움']
+,['핫크리스피버거','패스트푸드·분식','매움','빵','뜨거움']
+,['칠리치즈버거','패스트푸드·분식','매움','빵','뜨거움']
+,['핫치킨피자','패스트푸드·분식','매움','빵','뜨거움']
+,['불닭피자','패스트푸드·분식','매움','빵','뜨거움']
+,['핫도그칠리소스','패스트푸드·분식','매움','빵','뜨거움']
+,['소고기김밥','패스트푸드·분식','순함','밥','차가움']
+,['계란김밥','패스트푸드·분식','순함','밥','차가움']
+,['야채김밥','패스트푸드·분식','순함','밥','차가움']
+,['멸치김밥','패스트푸드·분식','순함','밥','차가움']
+,['샐러드김밥','패스트푸드·분식','순함','밥','차가움']
+,['유부김밥','패스트푸드·분식','순함','밥','차가움']
+,['청양고추김밥','패스트푸드·분식','매움','밥','차가움']
+,['불닭김밥','패스트푸드·분식','매움','밥','차가움']
+,['매운참치김밥','패스트푸드·분식','매움','밥','차가움']
+,['돈까스컵밥','패스트푸드·분식','순함','밥','뜨거움']
+,['불고기컵밥','패스트푸드·분식','순함','밥','뜨거움']
+,['치킨마요덮밥','패스트푸드·분식','순함','밥','뜨거움']
+,['참치마요덮밥','패스트푸드·분식','순함','밥','뜨거움']
+,['햄김치볶음밥','패스트푸드·분식','순함','밥','뜨거움']
+,['치즈볶음밥','패스트푸드·분식','순함','밥','뜨거움']
+,['불닭컵밥','패스트푸드·분식','매움','밥','뜨거움']
+,['매운치킨마요덮밥','패스트푸드·분식','매움','밥','뜨거움']
+,['제육컵밥','패스트푸드·분식','매움','밥','뜨거움']
+,['치즈라면','패스트푸드·분식','순함','면','뜨거움']
+,['계란라면','패스트푸드·분식','순함','면','뜨거움']
+,['어묵우동','패스트푸드·분식','순함','면','뜨거움']
+,['즉석우동','패스트푸드·분식','순함','면','뜨거움']
+,['김치없는라면','패스트푸드·분식','순함','면','뜨거움']
+,['짜장라면','패스트푸드·분식','순함','면','뜨거움']
+,['불닭볶음면','패스트푸드·분식','매움','면','뜨거움']
+,['매운라면','패스트푸드·분식','매움','면','뜨거움']
+,['떡라면','패스트푸드·분식','매움','면','뜨거움']
+,['매운볶음우동','패스트푸드·분식','매움','면','뜨거움']
+,['틈새라면','패스트푸드·분식','매움','면','뜨거움']
+,['해물라면','패스트푸드·분식','매움','면','뜨거움']
+,['매운짜장라면','패스트푸드·분식','매움','면','뜨거움']
+,['분식집냉우동','패스트푸드·분식','순함','면','차가움']
+,['분식집콩국수','패스트푸드·분식','순함','면','차가움']
+,['분식집쫄면','패스트푸드·분식','매움','면','차가움']
+,['매운냉라면','패스트푸드·분식','매움','면','차가움']
+,['치즈떡볶이','패스트푸드·분식','순함','기타','뜨거움']
+,['크림떡볶이','패스트푸드·분식','순함','기타','뜨거움']
+,['짜장떡볶이','패스트푸드·분식','순함','기타','뜨거움']
+,['버터갈릭감자튀김','패스트푸드·분식','순함','기타','뜨거움']
+,['치킨너겟','패스트푸드·분식','순함','기타','뜨거움']
+,['치킨윙','패스트푸드·분식','순함','기타','뜨거움']
+,['치킨봉','패스트푸드·분식','순함','기타','뜨거움']
+,['닭강정','패스트푸드·분식','순함','기타','뜨거움']
+,['허니버터치킨','패스트푸드·분식','순함','기타','뜨거움']
+,['치즈볼','패스트푸드·분식','순함','기타','뜨거움']
+,['만두튀김','패스트푸드·분식','순함','기타','뜨거움']
+,['김말이튀김','패스트푸드·분식','순함','기타','뜨거움']
+,['핫바','패스트푸드·분식','순함','기타','뜨거움']
+,['소떡소떡','패스트푸드·분식','순함','기타','뜨거움']
+,['왕새우튀김','패스트푸드·분식','순함','기타','뜨거움']
+,['국물떡볶이','패스트푸드·분식','매움','기타','뜨거움']
+,['마라떡볶이','패스트푸드·분식','매움','기타','뜨거움']
+,['불닭떡볶이','패스트푸드·분식','매움','기타','뜨거움']
+,['매운닭강정','패스트푸드·분식','매움','기타','뜨거움']
+,['매운닭꼬치','패스트푸드·분식','매움','기타','뜨거움']
+,['핫윙','패스트푸드·분식','매움','기타','뜨거움']
+,['매운어묵','패스트푸드·분식','매움','기타','뜨거움']
+,['매운순대볶음','패스트푸드·분식','매움','기타','뜨거움']
+,['불닭소떡소떡','패스트푸드·분식','매움','기타','뜨거움']
+].map(([name,theme,spice,form,temp])=>({name,theme,spice,form,temp}));
+const extraTags={'비빔밥':{temp:['뜨거움','차가움']},'회덮밥':{temp:['뜨거움','차가움']},'유부초밥':{temp:['뜨거움','차가움']},'오니기리':{temp:['뜨거움','차가움']},'김밥':{temp:['뜨거움','차가움']},'비빔국수':{temp:['뜨거움','차가움']},'냉우동':{temp:['뜨거움','차가움']},'피자':{temp:['뜨거움','차가움']}};
+foods.forEach(f=>{f.key='f:'+f.name;f.label=f.name;f.extra=extraTags[f.name]});
+
+/* ===== 상태 ===== */
+const steps=[
+{title:'1단계 · 어떤 종류의 음식이 좋아요?',desc:'원하는 테마를 여러 개 고르거나, 상관없음을 선택해 모든 테마를 포함하세요.',key:'themes',options:['한식','중식','일식','양식','패스트푸드·분식','상관없음'],multi:true},
+{title:'2단계 · 맵기는 어느 정도로?',desc:'하나를 선택하세요. 상관없음을 고르면 모두 포함해요.',key:'spice',options:['매움','순함','상관없음']},
+{title:'3단계 · 어떤 형태가 좋아요?',desc:'빵 · 밥 · 면 · 기타 중에서 선택하세요. 치킨·떡볶이·구이 등은 기타에 포함돼요.',key:'form',options:['빵','밥','면','기타','상관없음']},
+{title:'4단계 · 어떤 온도로 먹고 싶어요?',desc:'뜨거움 · 차가움 중에서 하나를 선택하세요. 상관없음을 고르면 모두 포함해요.',key:'temp',options:['뜨거움','차가움','상관없음']}
+];
+let mode='menu';            // 'place'(주변 음식점) | 'menu'(메뉴 이름)
+let placeItems=[],regionName='',demoMode=false;
+let stage=0;                // 0 장소, 1~4 질문, 5 후보, 6 룰렛, 7 오마카세
+let selection={themes:[],spice:null,form:null,temp:null};
+let angle=0,spinning=false,presented=[],picked=new Set(),customs=[],customSeq=0,spinHistory=[],finalFood=null;
+let favorites=new Set();try{favorites=new Set(JSON.parse(localStorage.getItem('menuRouletteFavorites')||'[]'))}catch(e){}
+const MAX_WHEEL=30;
+
+/* ===== 공통 ===== */
+function cleanName(n){n=(n||'').replace(/,/g,' ').trim();const s=n.replace(/\s+\S+점$/,'').trim();return s||n}
+function shortCategory(p){return (p.category_name||'').split(' > ').slice(1,3).join(' · ')}
+function areaOf(it){return regionName||((it.place&&it.place.address_name)||'').split(' ').slice(0,3).join(' ')}
+function searchQuery(it){return mode==='menu'&&!it.place?it.name:((it.place?it.place.place_name:it.name)+' '+areaOf(it)).trim()}
+function budget(f){if(/한우|스테이크|장어|랍스터|대게|킹크랩|모둠회|양갈비|샤브샤브|소갈비/.test(f.name))return '넉넉';if(/김밥|떡볶이|라면|우동|국수|토스트|핫도그|주먹밥|삼각김밥|분식|어묵|순대/.test(f.name))return '저렴';return '보통'}
+const emojiOf=f=>({한식:'🍚',중식:'🥟',일식:'🍣',양식:'🍝','패스트푸드·분식':'🍔'})[f.theme]||'🍽️';
+function descOf(it){
+  if(it.place){const p=it.place;const d=p.distance?Number(p.distance).toLocaleString()+'m':'';const tags=[it.spice,it.form,it.temp].filter(Boolean);
+    return [d,shortCategory(p)||it.theme,tags.length?tags.join('/')+'(추정)':''].filter(Boolean).join(' · ')}
+  if(it.custom)return '직접 추가';
+  return `${it.theme} · ${it.spice} · ${it.form} · ${it.temp} · ${budget(it)} 예산대(참고)`;
+}
+function saveFavorites(){try{localStorage.setItem('menuRouletteFavorites',JSON.stringify([...favorites]))}catch(e){}}
+function shuffle(arr){const r=arr.slice();for(let i=r.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r[i],r[j]]=[r[j],r[i]]}return r}
+
+/* ===== 카카오 SDK ===== */
+const KEY_STORE='kakaoJsKey';
+let kakaoReady=false,kakaoLoading=null;
+// 기본 키: 링크만 열어도 바로 지도 기능이 되도록 미리 넣어둔 카카오 JavaScript 키 (등록된 도메인에서만 동작)
+const DEFAULT_KEY='da18b1e1cdc270915134f662db29cb94';
+function getKey(){return DEFAULT_KEY} // 화면에서 키를 보거나 바꿀 수 없도록 항상 기본 키만 사용
+try{localStorage.removeItem(KEY_STORE)}catch(e){} // 예전에 직접 입력해 저장된 키가 있으면 정리
+function loadKakao(){
+  if(kakaoReady)return Promise.resolve();
+  if(kakaoLoading)return kakaoLoading;
+  const key=getKey();
+  if(!key)return Promise.reject(new Error('NOKEY'));
+  kakaoLoading=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://dapi.kakao.com/v2/maps/sdk.js?appkey='+encodeURIComponent(key)+'&libraries=services&autoload=false';
+    s.onload=()=>{try{kakao.maps.load(()=>{kakaoReady=true;res()})}catch(e){kakaoLoading=null;rej(new Error('SDK'))}};
+    s.onerror=()=>{kakaoLoading=null;rej(new Error('SDK'))};
+    document.head.appendChild(s);
+  });
+  return kakaoLoading;
+}
+function searchRegion(ps,q){return new Promise((res,rej)=>{ps.keywordSearch(q,(d,s)=>{const St=kakao.maps.services.Status;if(s===St.OK)res(d[0]);else if(s===St.ZERO_RESULT)res(null);else rej(new Error('SEARCH'))},{size:1})})}
+function searchFood(ps,loc,radius){return new Promise((res,rej)=>{let all=[];const St=kakao.maps.services.Status;
+  ps.categorySearch('FD6',function cb(d,s,pg){
+    if(s===St.OK){all=all.concat(d);if(pg.hasNextPage&&pg.current<3)pg.nextPage();else res(all)}
+    else if(s===St.ZERO_RESULT)res(all);else rej(new Error('SEARCH'));
+  },{location:loc,radius:radius,sort:kakao.maps.services.SortBy.DISTANCE})})}
+
+/* ===== 가게 → 분류 (카카오는 종류만 제공. 맵기·형태·온도는 이름/종류에서 추정, 모르면 null) ===== */
+function toItem(p){
+  const cat=p.category_name||'',txt=(p.place_name||'')+' '+cat;
+  let theme='기타';
+  if(/햄버거|피자|치킨|분식|패스트푸드/.test(cat))theme='패스트푸드·분식';
+  else if(/한식/.test(cat))theme='한식';else if(/중식/.test(cat))theme='중식';
+  else if(/일식/.test(cat))theme='일식';else if(/양식/.test(cat))theme='양식';
+  let spice=null,form=null,temp=null;
+  if(/마라|매운|매콤|불닭|떡볶이|닭발|낙지|쭈꾸미|주꾸미|짬뽕|김치|부대|감자탕|훠궈|곱창|엽기|불족|아구|신전|핫/.test(txt))spice='매움';
+  else if(/설렁탕|곰탕|국밥|삼계탕|돈까스|돈가스|초밥|스시|샐러드|죽|샤브|칼국수|버거|샌드|파스타|피자|우동|소바|한정식|백반|스테이크/.test(txt))spice='순함';
+  if(/버거|샌드|토스트|빵|베이커리|핫도그|피자|도넛/.test(txt))form='빵';
+  else if(/면|국수|라멘|라면|우동|소바|파스타|스파게티|칼국수|짬뽕|짜장|수제비|쫄면/.test(txt))form='면';
+  else if(/밥|덮밥|초밥|스시|김밥|죽|비빔|백반|정식|찌개|해장국|탕|돈까스|돈가스/.test(txt))form='밥';
+  else if(/치킨|떡볶이|족발|보쌈|고기|구이|곱창|갈비|삼겹|튀김|순대|회|술집|포차|호프|막창|오리/.test(txt))form='기타';
+  if(/냉면|냉우동|냉모밀|냉소바|냉국|물회|빙수|샐러드|초밥|스시|콩국수|소바|포케|막국수|아이스/.test(txt))temp='차가움';
+  else if(/국밥|탕|찌개|전골|라멘|칼국수|우동|죽|짬뽕|샤브|구이|치킨|피자|버거|돈까스|돈가스|국수|면|밥|고기|볶음|파스타|떡볶이|곱창|족발|보쌈|갈비/.test(txt))temp='뜨거움';
+  return {key:'p:'+p.id,name:p.place_name,label:cleanName(p.place_name),theme,spice,form,temp,place:p};
+}
+
+/* ===== 0단계: 장소 ===== */
+function showMsg(id,t){$(id).textContent=t||''}
+function setBusy(b){['#fetch','#gps','#menuMode','#demo','#useLoaded'].forEach(s=>$(s).disabled=b)}
+function resetSelection(){selection={themes:[],spice:null,form:null,temp:null};presented=[];picked=new Set();spinHistory=[];angle=0;customs=[]}
+async function runFetch(getCenter){
+  showMsg('#msg1','');setBusy(true);$('#fetchInfo').textContent='불러오는 중…';
+  try{
+    await loadKakao();
+    const ps=new kakao.maps.services.Places();
+    const center=await getCenter(ps);
+    if(!center){$('#fetchInfo').textContent='';showMsg('#msg1','그 지역을 찾지 못했어요. 다른 표현으로 입력해 보세요. (예: 천안시 불당동)');return}
+    const places=await searchFood(ps,new kakao.maps.LatLng(center.y,center.x),Number($('#radius').value));
+    if(!places.length){$('#fetchInfo').textContent='';showMsg('#msg1','주변에 음식점이 없어요. 반경을 넓혀보세요.');return}
+    placeItems=places.map(toItem);mode='place';demoMode=false;resetSelection();
+    $('#fetchInfo').textContent=`음식점 ${places.length}곳을 불러왔어요.`;
+    stage=1;show();
+  }catch(e){
+    $('#fetchInfo').textContent='';
+    if(e.message==='GEO')showMsg('#msg1','위치를 가져오지 못했어요. 권한을 허용하거나 지역명을 입력해 주세요.');
+    else if(e.message==='SDK'||e.message==='NOKEY')showMsg('#msg1','카카오 지도를 불러오지 못했어요. 잠시 후 새로고침하거나 "화면 체험"을 이용해 주세요.');
+    else showMsg('#msg1','검색 중 오류가 났어요. 잠시 후 다시 시도해 주세요.');
+  }finally{setBusy(false)}
+}
+$('#fetch').onclick=()=>{const q=$('#region').value.trim();if(!q){showMsg('#msg1','지역을 입력해 주세요. (예: 천안 불당동)');return}regionName=q;runFetch(ps=>searchRegion(ps,q))};
+$('#gps').onclick=()=>{regionName='';runFetch(()=>new Promise((res,rej)=>{
+  if(!navigator.geolocation)return rej(new Error('GEO'));
+  navigator.geolocation.getCurrentPosition(p=>res({x:p.coords.longitude,y:p.coords.latitude}),()=>rej(new Error('GEO')),{timeout:8000});}))};
+$('#region').addEventListener('keydown',e=>{if(e.key==='Enter')$('#fetch').click()});
+$('#menuMode').onclick=()=>{mode='menu';demoMode=false;resetSelection();stage=1;show()};
+$('#useLoaded').onclick=()=>{mode='place';resetSelection();stage=1;show()};
+$('#demo').onclick=()=>{ // 키 없이 화면 흐름만 확인하는 가상 데이터 (실제 가게 아님)
+  regionName='샘플 지역';demoMode=true;mode='place';resetSelection();
+  const base=[['샘플 김치찌개집','한식 > 찌개'],['샘플 돈까스','일식 > 돈까스'],['샘플 짜장면','중식 > 중화요리'],['샘플 떡볶이','분식 > 떡볶이'],['샘플 초밥','일식 > 초밥'],['샘플 파스타','양식 > 파스타'],['샘플 치킨','치킨 > 치킨'],['샘플 햄버거','패스트푸드 > 햄버거'],['샘플 국밥','한식 > 국밥'],['샘플 마라탕','중식 > 마라탕']];
+  placeItems=base.map((b,i)=>toItem({id:'demo'+i,place_name:b[0],category_name:'음식점 > '+b[1],distance:String(100+i*90),address_name:'샘플 주소'}));
+  $('#fetchInfo').textContent='가상 샘플이에요. 실제 가게가 아니고 지도 표시는 되지 않아요.';
+  stage=1;show();
+};
+
+/* ===== 1~4단계: 취향으로 좁히기 ===== */
+const baseItems=()=>mode==='place'?placeItems:foods;
+const matchTag=(it,k,v)=>v==='상관없음'||it[k]==null||it[k]===v||((it.extra&&it.extra[k])||[]).includes(v);
+function available(){return baseItems().filter(f=>(selection.themes.includes('상관없음')||selection.themes.includes(f.theme))&&matchTag(f,'spice',selection.spice)&&matchTag(f,'form',selection.form)&&matchTag(f,'temp',selection.temp))}
+function filteredPool(){const v=$('#budgetFilter').value;return available().filter(f=>mode!=='menu'||v==='전체'||budget(f)===v)}
+function renderQuestion(){
+  const s=steps[stage-1];
+  $('#where').textContent=mode==='place'?`📍 ${regionName||'내 위치'} 주변 음식점 ${placeItems.length}곳${demoMode?' (가상 샘플)':''} 중에서 고릅니다`:'📖 위치 없이 메뉴 이름으로 고르는 중이에요';
+  $('#omakaseStart').classList.toggle('hidden',stage!==1);
+  $('#title').textContent=s.title;$('#description').textContent=s.desc;
+  const place=mode==='place';
+  $('#hint').textContent=(s.multi?'여러 테마를 선택할 수 있어요. 상관없음은 전체 테마를 포함해요.':'한 가지만 선택할 수 있어요. 상관없음을 고르면 그 조건은 필터링하지 않아요.')+(place&&s.key!=='themes'?' 가게의 맵기·형태·온도는 카카오가 알려주지 않아 이름과 종류로 추정한 값이라 정확하지 않을 수 있어요. 추정이 안 되는 가게는 어떤 조건을 골라도 남겨둬요.':'');
+  const opts=place&&s.key==='themes'?['한식','중식','일식','양식','패스트푸드·분식','기타','상관없음']:s.options;
+  const box=$('#options');box.replaceChildren();
+  opts.forEach(op=>{
+    const b=document.createElement('button');b.className='option';b.type='button';
+    const cnt=place&&s.key==='themes'&&op!=='상관없음'?placeItems.filter(f=>f.theme===op).length:null;
+    b.textContent=cnt==null?op:`${op} (${cnt})`;
+    const on=s.multi?selection.themes.includes(op):selection[s.key]===op;
+    b.classList.toggle('selected',on);b.setAttribute('aria-pressed',on);
+    b.onclick=()=>{
+      if(s.multi){
+        if(op==='상관없음')selection.themes=on?[]:['상관없음'];
+        else{const old=selection.themes.filter(x=>x!=='상관없음');selection.themes=on?old.filter(x=>x!==op):[...old,op]}
+      }else selection[s.key]=op;
+      renderQuestion();
+    };
+    box.appendChild(b);
+  });
+  $('#next').disabled=s.multi?!selection.themes.length:!selection[s.key];
+}
+function buildPresented(){
+  const pool=filteredPool();
+  const base=mode==='menu'?shuffle(pool).slice(0,20):pool.slice(0,45);
+  presented=[...customs,...base];
+}
+$('#next').onclick=()=>{if(stage>=1&&stage<=4){stage++;if(stage===5){buildPresented();picked=new Set(customs.map(c=>c.key))}show()}};
+$('#back').onclick=()=>{if(stage>=1){stage--;show()}};
+function suggestOne(){const pool=baseItems();if(!pool.length)return;const it=pool[Math.floor(Math.random()*pool.length)];$('#surpriseFood').replaceChildren(resultNode(it,false))}
+$('#omakaseStart').onclick=()=>{stage=7;suggestOne();show()};
+$('#surpriseAgain').onclick=suggestOne;
+$('#surpriseHome').onclick=()=>{stage=0;show()};
+
+/* ===== 5단계: 후보 체크 ===== */
+function chosenFoods(){return presented.filter(f=>picked.has(f.key))}
+function renderPickVisibility(){
+  const search=$('#foodSearch').value.trim().toLowerCase(),only=$('#favoritesOnly').checked;let visible=0;
+  $('#pickList').querySelectorAll('.pick-item').forEach(l=>{const show=l.dataset.name.toLowerCase().includes(search)&&(!only||favorites.has(l.dataset.key));l.classList.toggle('hidden',!show);if(show)visible++});
+  $('#visibleCount').textContent=`화면에 표시된 후보 ${visible}개`;
+}
+$('#foodSearch').addEventListener('input',renderPickVisibility);
+$('#favoritesOnly').addEventListener('change',renderPickVisibility);
+$('#budgetFilter').addEventListener('change',()=>{buildPresented();picked=new Set(customs.map(c=>c.key));showPick()});
+$('#rerollCandidates').onclick=()=>{
+  const pool=filteredPool();
+  if(pool.length<=20){$('#pickMessage').textContent=`현재 조건의 전체 ${pool.length}개가 이미 표시돼 있어요. 더 다양한 후보를 원하면 조건을 바꿔주세요.`;return}
+  const prev=new Set(presented.map(f=>f.key));
+  presented=[...customs,...[...shuffle(pool.filter(f=>!prev.has(f.key))),...shuffle(pool.filter(f=>prev.has(f.key)))].slice(0,20)];
+  picked=new Set(customs.map(c=>c.key));showPick();
+  $('#pickMessage').textContent='새 후보로 갱신했어요. 이전 목록과 겹치지 않는 메뉴를 우선 제시했어요.';
+};
+function showPick(){
+  const place=mode==='place',count=presented.length;
+  $('#pickDesc').textContent=place?`조건에 맞는 가게를 가까운 순으로 보여드려요. 체크박스에서 2곳 이상, ${MAX_WHEEL}곳 이하로 골라주세요.`:'조건에 맞는 음식을 최대 20개 보여드려요. 체크박스에서 2가지 이상 선택해야 룰렛으로 이동할 수 있어요.';
+  $('#budgetFilter').classList.toggle('hidden',place);$('#budgetNote').classList.toggle('hidden',place);$('#rerollCandidates').classList.toggle('hidden',place);
+  $('#rerollCandidates').disabled=filteredPool().length<=20;
+  $('#pickSummary').textContent=`${place?`📍 ${regionName||'내 위치'} · `:''}선택 조건: ${selection.themes.join(' · ')} / ${selection.spice} / ${selection.form} / ${selection.temp}`;
+  const root=$('#pickList');root.replaceChildren();
+  presented.forEach(f=>{
+    const l=document.createElement('label');l.className='pick-item';l.dataset.key=f.key;l.dataset.name=f.name;
+    const c=document.createElement('input');c.type='checkbox';c.checked=picked.has(f.key);
+    c.onchange=()=>{c.checked?picked.add(f.key):picked.delete(f.key);updatePick()};
+    const t=document.createElement('span');t.className='nm';t.textContent=`${emojiOf(f)} ${f.name}`;
+    const meta=document.createElement('small');meta.className='foodmeta';meta.textContent=descOf(f);
+    const star=document.createElement('button');star.type='button';star.className='favbtn';star.title='즐겨찾기 전환';star.textContent=favorites.has(f.key)?'★':'☆';
+    star.onclick=e=>{e.preventDefault();e.stopPropagation();favorites.has(f.key)?favorites.delete(f.key):favorites.add(f.key);saveFavorites();star.textContent=favorites.has(f.key)?'★':'☆';renderPickVisibility()};
+    l.append(c,t,star,meta);root.appendChild(l);
+  });
+  $('#pickMessage').textContent=count<2?`현재 조건에 맞는 후보가 ${count}개예요. 룰렛에는 최소 2개가 필요하니 이전 단계에서 조건을 완화해 주세요.`:'';
+  updatePick();renderPickVisibility();
+}
+$('#pickAll').onchange=e=>{
+  const on=e.target.checked;
+  $('#pickList').querySelectorAll('.pick-item:not(.hidden)').forEach(l=>{if(on)picked.add(l.dataset.key);else picked.delete(l.dataset.key);l.querySelector('input').checked=on});
+  updatePick();
+};
+function updatePick(){
+  const n=picked.size;
+  $('#pickAll').disabled=presented.length===0;
+  const vis=[...$('#pickList').querySelectorAll('.pick-item:not(.hidden)')];
+  $('#pickAll').checked=vis.length>0&&vis.every(l=>picked.has(l.dataset.key));
+  $('#pickCount').textContent=`후보 ${presented.length}개 · 룰렛에 선택한 ${n}개 (2~${MAX_WHEEL}개)`;
+  $('#pickNext').disabled=n<2||n>MAX_WHEEL;
+  if(n>MAX_WHEEL)$('#pickMessage').textContent=`룰렛은 ${MAX_WHEEL}개까지만 넣을 수 있어요. ${n-MAX_WHEEL}개를 해제해 주세요.`;
+}
+function addCustom(){
+  const name=$('#custom').value.trim().replace(/,/g,' ');if(!name)return;
+  const it={key:'c'+(++customSeq),name,label:name,theme:'직접',custom:true};
+  customs.unshift(it);presented.unshift(it);picked.add(it.key);$('#custom').value='';showPick();
+}
+$('#addCustom').onclick=addCustom;
+$('#custom').addEventListener('keydown',e=>{if(e.key==='Enter')addCustom()});
+$('#pickBack').onclick=()=>{stage=4;show()};
+$('#pickNext').onclick=()=>{if(picked.size>=2&&picked.size<=MAX_WHEEL){spinHistory=[];stage=6;show()}};
+
+/* ===== 6단계: 룰렛 ===== */
+const colors=['#f8ac9a','#ffd88b','#9cdac6','#b1bffa','#d6acf0','#96cfed','#f6bada','#b6db94'];
+function draw(items){
+  ctx.clearRect(0,0,640,640);ctx.save();ctx.translate(320,320);
+  if(!items.length){ctx.beginPath();ctx.arc(0,0,297,0,Math.PI*2);ctx.fillStyle='#ede9f7';ctx.fill();ctx.restore();return}
+  ctx.rotate(angle);const part=Math.PI*2/items.length;
+  items.forEach((f,i)=>{
+    const a=-Math.PI/2+i*part;
+    ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,300,a,a+part);ctx.closePath();
+    ctx.fillStyle=colors[i%colors.length];ctx.fill();ctx.lineWidth=3;ctx.strokeStyle='#fff';ctx.stroke();
+    if(items.length<=25){
+      ctx.save();ctx.rotate(a+part/2);ctx.translate(190,0);ctx.rotate(Math.PI/2);ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#273043';
+      ctx.font=`bold ${items.length>15?18:items.length>9?21:25}px system-ui,sans-serif`;
+      const n=f.label;ctx.fillText(n.length>9?n.slice(0,8)+'…':n,0,0,items.length>15?90:140);ctx.restore();
+    }
+  });
+  ctx.beginPath();ctx.arc(0,0,35,0,Math.PI*2);ctx.fillStyle='white';ctx.fill();ctx.restore();
+}
+function nameOfKey(k){const f=presented.find(x=>x.key===k);return f?f.name:k}
+function renderHistory(){
+  const list=$('#historyList');list.replaceChildren();
+  spinHistory.forEach(k=>{const li=document.createElement('li');li.textContent=nameOfKey(k);list.appendChild(li)});
+  $('#historyCount').textContent=`총 ${spinHistory.length}회`;
+  $('#historyEmpty').classList.toggle('hidden',spinHistory.length>0);
+  const remaining=chosenFoods().filter(f=>!spinHistory.includes(f.key)).length;
+  $('#remainingInfo').textContent=`미당첨 ${remaining}개 / 선택된 후보 ${chosenFoods().length}개`;
+}
+function showFinal(){
+  const list=chosenFoods();
+  const sm=$('#summary');sm.replaceChildren();
+  const st=document.createElement('strong');st.textContent='선택한 조건';sm.append(st,document.createElement('br'),
+    document.createTextNode(`${mode==='place'?`📍 ${regionName||'내 위치'} / `:''}${selection.themes.join(' · ')} / 맵기: ${selection.spice} / 형태: ${selection.form} / 온도: ${selection.temp}`));
+  const cd=$('#candidate');cd.replaceChildren();
+  const h=document.createElement('strong');h.textContent=`후보 ${list.length}개`;cd.append(h,document.createElement('br'));
+  list.forEach(f=>{const s=document.createElement('span');s.className='chip';s.textContent=f.label;cd.appendChild(s)});
+  $('#message').textContent=list.length?'':'룰렛에 넣을 후보를 2개 이상 선택해 주세요.';
+  $('#result').textContent=list.length?'어떤 메뉴가 나올까요?':'후보를 다시 선택해 주세요.';
+  $('#spin').disabled=list.length<2;$('#spin').textContent=spinHistory.length?'🎲 다시 돌리기!':'🎲 룰렛 돌리기!';
+  finalFood=null;$('#foodDetail').classList.add('hidden');$('#map').classList.add('hidden');
+  angle=0;draw(list);renderHistory();
+}
+/* 결과 표시: 이름 + 정보 + 가게 정보 링크 */
+function resultNode(it,withTitle=true){
+  const box=document.createElement('div');
+  const t=document.createElement('div');t.textContent=withTitle?`🎉 오늘의 메뉴: ${it.name}!`:`${emojiOf(it)} ${it.name}`;box.appendChild(t);
+  const info=document.createElement('div');info.className='info';
+  const addr=it.place?(it.place.road_address_name||it.place.address_name||''):'';
+  info.textContent=[descOf(it),addr].filter(Boolean).join(' · ');box.appendChild(info);
+  const links=document.createElement('div');links.className='links';
+  const a1=document.createElement('a');a1.target='_blank';a1.rel='noopener';
+  if(it.place&&it.place.place_url){a1.href=it.place.place_url;a1.textContent='🗺️ 카카오맵 가게 정보'}
+  else{a1.href='https://map.kakao.com/link/search/'+encodeURIComponent(searchQuery(it));a1.textContent=mode==='menu'?'🗺️ 카카오맵에서 근처 찾기':'🗺️ 카카오맵에서 찾기'}
+  const a2=document.createElement('a');a2.target='_blank';a2.rel='noopener';
+  a2.href='https://map.naver.com/p/search/'+encodeURIComponent(searchQuery(it));a2.textContent='🟢 네이버 지도에서 찾기';
+  links.append(a1,a2);box.appendChild(links);
+  return box;
+}
+function showMap(p){
+  const mapBox=$('#map');
+  try{mapBox.classList.remove('hidden');const pos=new kakao.maps.LatLng(p.y,p.x);const map=new kakao.maps.Map(mapBox,{center:pos,level:3});new kakao.maps.Marker({map,position:pos})}
+  catch(e){mapBox.classList.add('hidden')}
+}
+function displayFood(f){
+  finalFood=f;const d=$('#foodDetail');d.classList.remove('hidden');
+  d.textContent=`${emojiOf(f)} ${f.name} — ${descOf(f)}. `+(f.place?'맵기·형태·온도는 이름과 종류로 추정한 값이에요.':'제공 방식과 가격은 매장별로 달라질 수 있어요.');
+  $('#favoriteResult').textContent=favorites.has(f.key)?'★ 즐겨찾기 해제':'☆ 결과 즐겨찾기';
+}
+$('#clearHistory').onclick=()=>{if(spinning)return;spinHistory=[];renderHistory();$('#message').textContent='추첨 기록을 초기화했어요.'};
+$('#favoriteResult').onclick=()=>{if(!finalFood)return;favorites.has(finalFood.key)?favorites.delete(finalFood.key):favorites.add(finalFood.key);saveFavorites();displayFood(finalFood)};
+$('#shareResult').onclick=async()=>{
+  if(!finalFood){$('#message').textContent='먼저 룰렛을 돌려주세요.';return}
+  const link=finalFood.place&&finalFood.place.place_url?`\n${finalFood.place.place_url}`:'';
+  const content=`오늘 뭐 먹지? 🎉 ${finalFood.name}\n${descOf(finalFood)}${link}\n추첨 기록: ${spinHistory.map(nameOfKey).join(' → ')}`;
+  try{if(navigator.share)await navigator.share({title:'오늘의 메뉴',text:content});else if(navigator.clipboard){await navigator.clipboard.writeText(content);$('#message').textContent='결과를 복사했어요.'}else throw Error('x')}
+  catch(e){if(e.name==='AbortError')return;const t=document.createElement('textarea');t.value=content;document.body.appendChild(t);t.select();try{document.execCommand('copy');$('#message').textContent='결과를 복사했어요.'}catch(err){$('#message').textContent='공유가 어려우면 결과 이름을 직접 복사해 주세요.'}t.remove()}
+};
+const lockBtns=['#edit','#reset','#clearHistory'];
+$('#edit').onclick=()=>{if(spinning)return;stage=5;show()};
+$('#reset').onclick=()=>{if(spinning)return;resetSelection();stage=0;show()};
+$('#spin').onclick=()=>{
+  if(spinning)return;const items=chosenFoods();if(items.length<2)return;
+  const avoiding=$('#avoidRepeat').checked&&spinHistory.length>0;
+  if(avoiding&&items.every(f=>spinHistory.includes(f.key))){$('#message').textContent='선택한 후보가 모두 한 번 이상 나왔어요. 기록을 초기화하거나 중복 제외를 꺼주세요.';return}
+  $('#spin').textContent='🎲 다시 돌리기!';spinning=true;$('#spin').disabled=true;lockBtns.forEach(s=>$(s).disabled=true);
+  $('#message').textContent='';$('#result').textContent='룰렛이 돌고 있어요…';$('#foodDetail').classList.add('hidden');$('#map').classList.add('hidden');
+  const part=Math.PI*2/items.length;
+  function animate(chosen,done){
+    const current=((angle%(Math.PI*2))+(Math.PI*2))%(Math.PI*2);
+    let mod=(-(chosen+.5)*part)%(Math.PI*2);mod=(mod+Math.PI*2)%(Math.PI*2);
+    const extra=(mod-current+Math.PI*2)%(Math.PI*2);
+    const initial=angle,delta=2*Math.PI*4+extra,t0=performance.now(),duration=1900;
+    function frame(t){const p=Math.min(1,(t-t0)/duration),ease=1-(1-p)**4;angle=initial+delta*ease;draw(items);if(p<1)requestAnimationFrame(frame);else done()}
+    requestAnimationFrame(frame);
+  }
+  let dup=0;
+  function roll(){
+    let chosen=Math.floor(Math.random()*items.length);
+    if(avoiding&&dup>=3){const rem=items.map((f,i)=>i).filter(i=>!spinHistory.includes(items[i].key));chosen=rem[Math.floor(Math.random()*rem.length)]}
+    animate(chosen,()=>{
+      const food=items[chosen];
+      if(avoiding&&spinHistory.includes(food.key)){dup++;$('#result').textContent=`${food.name}은(는) 이전에 당첨됐어요. 자동으로 다시 돌리는 중…`;roll();return}
+      $('#result').replaceChildren(resultNode(food));
+      spinHistory.push(food.key);displayFood(food);renderHistory();
+      if(kakaoReady&&food.place&&food.place.x&&food.place.y)showMap(food.place);
+      spinning=false;$('#spin').disabled=false;lockBtns.forEach(s=>$(s).disabled=false);
+    });
+  }
+  roll();
+};
+
+/* ===== 화면 전환 ===== */
+function show(){
+  const S={locate:stage===0,question:stage>=1&&stage<=4,pick:stage===5,final:stage===6,surprise:stage===7};
+  Object.keys(S).forEach(k=>$('#'+k).classList.toggle('hidden',!S[k]));
+  $('#progress').classList.toggle('hidden',stage===7);
+  [...$('#progress').children].forEach((el,i)=>{el.className=i===stage?'active':i<stage?'done':''});
+  if(stage===0){
+    const has=placeItems.length>0;
+    $('#useLoaded').classList.toggle('hidden',!has);
+    if(has)$('#useLoaded').textContent=`${demoMode?'가상 샘플':(regionName||'내 위치')} 주변 ${placeItems.length}곳으로 계속하기 →`;
+  }
+  if(S.question)renderQuestion();
+  if(S.pick)showPick();
+  if(S.final)showFinal();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+/* ===== 테마 ===== */
+const darkMode=$('#darkMode');
+try{darkMode.checked=localStorage.getItem('menuRouletteTheme')==='dark'}catch(e){}
+function applyTheme(){document.documentElement.dataset.theme=darkMode.checked?'dark':'light';$('#themeLabel').textContent=darkMode.checked?'🌙 다크 모드':'☀️ 라이트 모드';try{localStorage.setItem('menuRouletteTheme',darkMode.checked?'dark':'light')}catch(e){}}
+darkMode.addEventListener('change',applyTheme);applyTheme();
+show();
+</script></body></html>
