@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>오늘 뭐 먹지? 동네 맛집 룰렛</title>
+<style>
+:root{font-family:system-ui,'Malgun Gothic',sans-serif;color:#253044;background:#f6f4fb}
+*{box-sizing:border-box}
+body{margin:0;padding:24px;display:flex;justify-content:center}
+.app{width:min(100%,600px);display:flex;flex-direction:column;gap:16px}
+header{text-align:center;padding:8px 0}
+h1{margin:0 0 6px;font-size:clamp(24px,5vw,32px)}
+header p{color:#6b7280;margin:0}
+.card{background:white;border-radius:20px;box-shadow:0 8px 30px #3730501a;padding:20px}
+.card h2{margin:0 0 12px;font-size:17px;display:flex;align-items:center;gap:8px}
+.step{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#6d4edb;color:white;font-size:14px}
+input[type=text],select{padding:11px 12px;border:1px solid #d7d7e2;border-radius:12px;font:inherit;background:white;min-width:0}
+button{border:0;background:#6d4edb;color:white;font:inherit;font-weight:700;border-radius:12px;padding:13px 20px;cursor:pointer}
+button:disabled{opacity:.55;cursor:wait}
+button.sub{background:#e9e5fb;color:#4a36a8;padding:10px 14px;white-space:nowrap;font-size:14px}
+button.full{width:100%}
+.row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.row>input{flex:1;min-width:140px}
+.hint{font-size:13px;color:#6b7280;margin-top:6px}
+details{margin-top:10px;font-size:13px;color:#6b7280}
+details summary{cursor:pointer;font-weight:700}
+#list{max-height:300px;overflow:auto;border:1px solid #ece8fa;border-radius:14px;margin:10px 0}
+#list label{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-bottom:1px solid #f1eefb;cursor:pointer}
+#list label:last-child{border-bottom:0}
+#list input{margin-top:4px;width:18px;height:18px;flex:none}
+#list .nm{font-weight:700}
+#list .meta{font-size:12px;color:#6b7280;margin-top:2px}
+.empty{padding:18px;text-align:center;color:#6b7280;font-size:14px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:#f5f2ff;border-radius:999px;padding:5px 6px 5px 12px;font-size:13px;font-weight:700}
+.chip button{background:#ddd5fb;color:#4a36a8;padding:0;width:20px;height:20px;border-radius:50%;font-size:12px;line-height:20px}
+.wheel-wrap{position:relative;width:min(100%,320px);margin:0 auto 18px}
+.pointer{position:absolute;left:50%;top:-5px;transform:translateX(-50%);z-index:2;width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;border-top:28px solid #263042;filter:drop-shadow(0 2px 2px #0002)}
+canvas{display:block;width:100%;aspect-ratio:1}
+#result{min-height:62px;margin-top:16px;padding:16px;border-radius:12px;background:#f5f2ff;font-size:20px;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center}
+#result .info{font-size:14px;font-weight:500;color:#6b7280}
+#result .links{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+#result a{font-size:14px;font-weight:700;color:#6d4edb}
+#map{width:100%;height:220px;border-radius:12px;margin-top:12px;display:none}
+.msg{font-size:13px;color:#a13535;min-height:18px;margin-top:8px}
+.note{font-size:13px;color:#8a6d00}
+</style>
+</head>
+<body>
+<main class="app">
+  <header>
+    <h1>🍽️ 오늘 뭐 먹지?</h1>
+    <p>장소 정하고 → 후보 고르고 → 룰렛에 맡기기</p>
+  </header>
+
+  <!-- 1. 장소 -->
+  <section class="card">
+    <h2><span class="step">1</span>어디서 먹을까?</h2>
+    <div class="row">
+      <input type="text" id="region" placeholder="지역 입력 (예: 천안 불당동)">
+      <button class="sub" id="gps" type="button">내 위치</button>
+    </div>
+    <div class="row">
+      <select id="radius">
+        <option value="500">반경 500m</option>
+        <option value="1000" selected>반경 1km</option>
+        <option value="2000">반경 2km</option>
+      </select>
+      <button id="fetch" type="button" style="flex:1">주변 음식점 불러오기</button>
+    </div>
+    <div class="hint" id="fetchInfo">폐업한 가게가 섞여 있을 수 있어요. 참고용으로 봐주세요.</div>
+    <div class="msg" id="msg1" role="alert"></div>
+    <details id="keyBox">
+      <summary>카카오 자바스크립트 키 설정</summary>
+      <div class="row" style="margin-top:8px">
+        <input type="text" id="key" placeholder="자바스크립트 키 붙여넣기">
+        <button class="sub" id="saveKey" type="button">저장</button>
+      </div>
+      <div>키는 이 브라우저에만 저장돼요. 키가 없다면 아래 버튼으로 화면 흐름만 체험할 수 있어요.</div>
+      <div class="row" style="margin-top:8px"><button class="sub" id="demo" type="button">키 없이 화면 체험 (가상 샘플)</button></div>
+    </details>
+  </section>
+
+  <!-- 2. 목록 / 체크 -->
+  <section class="card" id="step2" style="display:none">
+    <h2><span class="step">2</span>후보로 넣을 가게를 골라요</h2>
+    <div class="row">
+      <select id="cat">
+        <option value="">전체 종류</option>
+        <option value="한식">한식</option>
+        <option value="중식">중식</option>
+        <option value="일식">일식</option>
+        <option value="양식">양식</option>
+        <option value="분식">분식</option>
+        <option value="치킨">치킨</option>
+        <option value="패스트푸드">패스트푸드</option>
+      </select>
+      <button class="sub" id="selAll" type="button">보이는 것 전체 선택</button>
+      <button class="sub" id="selNone" type="button">선택 해제</button>
+    </div>
+    <div id="list"></div>
+    <div class="row">
+      <input type="text" id="custom" placeholder="목록에 없는 가게 직접 추가">
+      <button class="sub" id="addCustom" type="button">추가</button>
+    </div>
+    <button class="full" id="useSel" type="button">선택한 가게를 룰렛에 넣기</button>
+    <div class="msg" id="msg2" role="alert"></div>
+  </section>
+
+  <!-- 3. 룰렛 -->
+  <section class="card" id="step3">
+    <h2><span class="step">3</span>룰렛 돌리기</h2>
+    <div class="chips" id="chips"></div>
+    <div class="wheel-wrap"><div class="pointer"></div><canvas id="wheel" width="640" height="640" aria-label="메뉴 룰렛"></canvas></div>
+    <button class="full" id="spin" type="button">🎲 룰렛 돌리기!</button>
+    <div id="result" aria-live="polite">후보를 2곳 이상 넣어주세요.</div>
+    <div id="map"></div>
+    <div class="msg" id="msg3" role="alert"></div>
+  </section>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+const canvas=$('#wheel'),ctx=canvas.getContext('2d'),spinBtn=$('#spin'),result=$('#result'),mapBox=$('#map');
+const colors=['#f7a98d','#f8cb79','#95d6be','#a7b9fa','#d9a7e8','#8ed0ed','#f7b7d5','#a4d89b'];
+
+let allPlaces=[];          // 불러온 가게 목록
+const selected=new Set();  // 체크된 가게 id
+let items=[];              // 룰렛 후보 [{label, place}]
+let regionName='';
+let angle=0,spinning=false,customSeq=0;
+
+/* ---------- 공통 ---------- */
+function cleanName(n){
+  n=(n||'').replace(/,/g,' ').trim();
+  const s=n.replace(/\s+\S+점$/,'').trim(); // "맘스터치 불당점" -> "맘스터치"
+  return s||n;
+}
+function shortCategory(p){return (p.category_name||'').split(' > ').slice(1,3).join(' · ')}
+function searchQuery(p){
+  const area=regionName||(p.address_name||'').split(' ').slice(0,3).join(' ');
+  return (p.place_name+' '+area).trim();
+}
+function setBusy(b){
+  ['#fetch','#gps','#useSel','#selAll','#selNone','#addCustom','#demo'].forEach(s=>$(s).disabled=b);
+  spinBtn.disabled=b;
+}
+
+/* ---------- 카카오 SDK ---------- */
+const KEY_STORE='kakaoJsKey';
+let kakaoReady=false,kakaoLoading=null;
+function getKey(){try{return localStorage.getItem(KEY_STORE)||''}catch(e){return ''}}
+$('#saveKey').addEventListener('click',()=>{
+  const k=$('#key').value.trim();
+  try{localStorage.setItem(KEY_STORE,k)}catch(e){}
+  $('#fetchInfo').textContent=k?'키를 저장했어요. 이제 불러오기를 눌러보세요.':'키를 지웠어요.';
+});
+$('#key').value=getKey();
+if(!getKey())$('#keyBox').open=true;
+
+function loadKakao(){
+  if(kakaoReady)return Promise.resolve();
+  if(kakaoLoading)return kakaoLoading;
+  const key=getKey();
+  if(!key)return Promise.reject(new Error('NOKEY'));
+  kakaoLoading=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://dapi.kakao.com/v2/maps/sdk.js?appkey='+encodeURIComponent(key)+'&libraries=services&autoload=false';
+    s.onload=()=>{try{kakao.maps.load(()=>{kakaoReady=true;res()})}catch(e){rej(new Error('SDK'))}};
+    s.onerror=()=>rej(new Error('SDK'));
+    document.head.appendChild(s);
+  });
+  return kakaoLoading;
+}
+function searchRegion(ps,q){
+  return new Promise((res,rej)=>{
+    ps.keywordSearch(q,(d,s)=>{
+      const St=kakao.maps.services.Status;
+      if(s===St.OK)res(d[0]);else if(s===St.ZERO_RESULT)res(null);else rej(new Error('SEARCH'));
+    },{size:1});
+  });
+}
+function searchFood(ps,loc,radius){
+  return new Promise((res,rej)=>{
+    let all=[];
+    const St=kakao.maps.services.Status;
+    ps.categorySearch('FD6',function cb(d,s,pg){
+      if(s===St.OK){
+        all=all.concat(d);
+        if(pg.hasNextPage&&pg.current<3)pg.nextPage();else res(all);
+      }else if(s===St.ZERO_RESULT)res(all);
+      else rej(new Error('SEARCH'));
+    },{location:loc,radius:radius,sort:kakao.maps.services.SortBy.DISTANCE});
+  });
+}
+
+/* ---------- 1단계: 불러오기 ---------- */
+function showMsg(id,t){$(id).textContent=t||''}
+async function runFetch(getCenter){
+  showMsg('#msg1','');setBusy(true);$('#fetchInfo').textContent='불러오는 중…';
+  try{
+    await loadKakao();
+    const ps=new kakao.maps.services.Places();
+    const center=await getCenter(ps);
+    if(!center){$('#fetchInfo').textContent='';showMsg('#msg1','그 지역을 찾지 못했어요. 다른 표현으로 입력해 보세요. (예: 천안시 불당동)');return}
+    const places=await searchFood(ps,new kakao.maps.LatLng(center.y,center.x),Number($('#radius').value));
+    if(!places.length){$('#fetchInfo').textContent='';showMsg('#msg1','주변에 음식점이 없어요. 반경을 넓혀보세요.');return}
+    loadList(places);
+    $('#fetchInfo').textContent=`음식점 ${places.length}곳을 불러왔어요. 아래에서 골라주세요.`;
+  }catch(e){
+    $('#fetchInfo').textContent='';
+    if(e.message==='NOKEY')showMsg('#msg1','카카오 자바스크립트 키를 먼저 저장해 주세요. (키가 없으면 "키 없이 화면 체험"을 눌러보세요)');
+    else if(e.message==='GEO')showMsg('#msg1','위치를 가져오지 못했어요. 권한을 허용하거나 지역명을 입력해 주세요.');
+    else if(e.message==='SDK')showMsg('#msg1','카카오 지도를 불러오지 못했어요. 키와 등록한 사이트 주소를 확인하고 새로고침해 주세요.');
+    else showMsg('#msg1','검색 중 오류가 났어요. 잠시 후 다시 시도해 주세요.');
+  }finally{setBusy(false)}
+}
+$('#fetch').addEventListener('click',()=>{
+  const q=$('#region').value.trim();
+  if(!q){showMsg('#msg1','지역을 입력해 주세요. (예: 천안 불당동)');return}
+  regionName=q;
+  runFetch(ps=>searchRegion(ps,q));
+});
+$('#gps').addEventListener('click',()=>{
+  regionName='';
+  runFetch(()=>new Promise((res,rej)=>{
+    if(!navigator.geolocation)return rej(new Error('GEO'));
+    navigator.geolocation.getCurrentPosition(
+      p=>res({x:p.coords.longitude,y:p.coords.latitude}),
+      ()=>rej(new Error('GEO')),{timeout:8000});
+  }));
+});
+$('#region').addEventListener('keydown',e=>{if(e.key==='Enter')$('#fetch').click()});
+
+/* 키 없이 화면 흐름만 확인하는 가상 데이터 (실제 가게 아님) */
+$('#demo').addEventListener('click',()=>{
+  regionName='샘플 지역';
+  const base=[
+    ['샘플 김치찌개집','한식 > 찌개'],['샘플 돈까스','일식 > 돈까스'],['샘플 짜장면','중식 > 중화요리'],
+    ['샘플 떡볶이','분식 > 떡볶이'],['샘플 초밥','일식 > 초밥'],['샘플 파스타','양식 > 파스타'],
+    ['샘플 치킨','치킨 > 치킨'],['샘플 햄버거','패스트푸드 > 햄버거'],['샘플 국밥','한식 > 국밥'],['샘플 마라탕','중식 > 마라탕']
+  ];
+  loadList(base.map((b,i)=>({id:'demo'+i,place_name:b[0],category_name:'음식점 > '+b[1],distance:String(100+i*90),address_name:'샘플 주소'})));
+  $('#fetchInfo').textContent='가상 샘플이에요. 실제 가게가 아니고 지도 표시는 되지 않아요.';
+});
+
+/* ---------- 2단계: 목록 / 체크박스 ---------- */
+function loadList(places){
+  allPlaces=places;selected.clear();
+  $('#step2').style.display='';
+  renderList();
+  $('#step2').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function visiblePlaces(){
+  const cat=$('#cat').value;
+  return allPlaces.filter(p=>!cat||(p.category_name||'').includes(cat)||p.custom);
+}
+function renderList(){
+  const box=$('#list');box.textContent='';
+  const vis=visiblePlaces();
+  if(!vis.length){const d=document.createElement('div');d.className='empty';d.textContent='이 종류의 가게가 없어요.';box.appendChild(d);updateUse();return}
+  vis.forEach(p=>{
+    const lab=document.createElement('label');
+    const cb=document.createElement('input');cb.type='checkbox';cb.checked=selected.has(p.id);
+    cb.addEventListener('change',()=>{cb.checked?selected.add(p.id):selected.delete(p.id);updateUse()});
+    const wrap=document.createElement('div');
+    const nm=document.createElement('div');nm.className='nm';nm.textContent=p.place_name;
+    const meta=document.createElement('div');meta.className='meta';
+    const dist=p.distance?Number(p.distance).toLocaleString()+'m · ':'';
+    meta.textContent=p.custom?'직접 추가':dist+shortCategory(p);
+    wrap.append(nm,meta);lab.append(cb,wrap);box.appendChild(lab);
+  });
+  updateUse();
+}
+function updateUse(){
+  $('#useSel').textContent=`선택한 ${selected.size}곳을 룰렛에 넣기`;
+}
+$('#cat').addEventListener('change',renderList);
+$('#selAll').addEventListener('click',()=>{visiblePlaces().forEach(p=>selected.add(p.id));renderList()});
+$('#selNone').addEventListener('click',()=>{selected.clear();renderList()});
+$('#addCustom').addEventListener('click',addCustom);
+$('#custom').addEventListener('keydown',e=>{if(e.key==='Enter')addCustom()});
+function addCustom(){
+  const name=$('#custom').value.trim().replace(/,/g,' ');
+  if(!name)return;
+  const p={id:'c'+(++customSeq),place_name:name,custom:true};
+  allPlaces.unshift(p);selected.add(p.id);$('#custom').value='';renderList();
+}
+$('#useSel').addEventListener('click',()=>{
+  const picked=allPlaces.filter(p=>selected.has(p.id));
+  if(picked.length<2){showMsg('#msg2','가게를 2곳 이상 선택해 주세요.');return}
+  showMsg('#msg2',picked.length>30?`선택이 ${picked.length}곳이라 앞의 30곳만 룰렛에 들어가요.`:'');
+  items=picked.slice(0,30).map(p=>({label:cleanName(p.place_name),place:p}));
+  angle=0;refreshWheel();
+  $('#step3').scrollIntoView({behavior:'smooth',block:'start'});
+});
+
+/* ---------- 3단계: 룰렛 ---------- */
+function colorOf(i,len){
+  if(len>1&&i===len-1&&i%colors.length===0)return colors[4];
+  return colors[i%colors.length];
+}
+function draw(){
+  ctx.clearRect(0,0,640,640);
+  const n=items.length;
+  if(!n){ // 빈 룰렛
+    ctx.beginPath();ctx.arc(320,320,300,0,2*Math.PI);ctx.fillStyle='#f1eefb';ctx.fill();
+    ctx.fillStyle='#9a93b8';ctx.font='bold 28px system-ui, sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('후보를 넣어주세요',320,320);return;
+  }
+  const part=2*Math.PI/n;
+  ctx.save();ctx.translate(320,320);ctx.rotate(angle);
+  items.forEach((it,i)=>{
+    const a=-Math.PI/2+i*part;
+    ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,300,a,a+part);ctx.closePath();
+    ctx.fillStyle=colorOf(i,n);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=4;ctx.stroke();
+    ctx.save();ctx.rotate(a+part/2);ctx.translate(176,0);ctx.rotate(Math.PI/2);
+    ctx.fillStyle='#253044';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.font=`bold ${n>12?19:n>8?23:29}px system-ui, sans-serif`;
+    const name=it.label;const shown=name.length>9?name.slice(0,8)+'…':name;
+    ctx.fillText(shown,0,0,n>12?94:132);ctx.restore();
+  });
+  ctx.beginPath();ctx.arc(0,0,38,0,2*Math.PI);ctx.fillStyle='white';ctx.fill();ctx.strokeStyle='#ddd';ctx.lineWidth=5;ctx.stroke();ctx.restore();
+}
+function selectedIndex(len){
+  const part=2*Math.PI/len;
+  const norm=((angle%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
+  return (Math.floor(((2*Math.PI-norm)%(2*Math.PI))/part))%len;
+}
+function renderChips(){
+  const box=$('#chips');box.textContent='';
+  items.forEach((it,i)=>{
+    const c=document.createElement('span');c.className='chip';
+    const t=document.createElement('span');t.textContent=it.label;
+    const x=document.createElement('button');x.type='button';x.textContent='×';x.title='이 후보 빼기';
+    x.addEventListener('click',()=>{
+      if(spinning)return;
+      selected.delete(it.place.id);items.splice(i,1);
+      resetResult();renderChips();draw();if(allPlaces.length)renderList();
+    });
+    c.append(t,x);box.appendChild(c);
+  });
+}
+function resetResult(){
+  mapBox.style.display='none';
+  result.textContent=items.length>=2?'어떤 메뉴가 나올까?':'후보를 2곳 이상 넣어주세요.';
+}
+function refreshWheel(){resetResult();renderChips();draw();showMsg('#msg3','')}
+
+spinBtn.addEventListener('click',()=>{
+  if(spinning)return;
+  if(items.length<2){showMsg('#msg3','후보를 2곳 이상 넣어주세요.');return}
+  showMsg('#msg3','');mapBox.style.display='none';result.textContent='룰렛이 돌아가는 중…';
+  spinning=true;setBusy(true);
+  const start=angle,delta=Math.PI*2*(5+Math.random()*2),begin=performance.now(),duration=3100;
+  function animate(now){
+    const t=Math.min(1,(now-begin)/duration),ease=1-Math.pow(1-t,4);
+    angle=start+delta*ease;draw();
+    if(t<1)requestAnimationFrame(animate);
+    else{spinning=false;setBusy(false);showResult(items[selectedIndex(items.length)])}
+  }
+  requestAnimationFrame(animate);
+});
+
+/* ---------- 결과: 가게 정보 링크 ---------- */
+function showResult(it){
+  const p=it.place;
+  result.textContent='';
+  const title=document.createElement('div');title.textContent=`🎉 오늘의 메뉴는 ${p.place_name}!`;result.appendChild(title);
+  if(!p.custom){
+    const info=document.createElement('div');info.className='info';
+    const dist=p.distance?Number(p.distance).toLocaleString()+'m · ':'';
+    info.textContent=[dist+shortCategory(p),p.road_address_name||p.address_name||''].filter(Boolean).join(' · ');
+    result.appendChild(info);
+  }
+  const links=document.createElement('div');links.className='links';
+  const a1=document.createElement('a');a1.target='_blank';a1.rel='noopener';
+  if(p.place_url){a1.href=p.place_url;a1.textContent='🗺️ 카카오맵 가게 정보'}
+  else{a1.href='https://map.kakao.com/link/search/'+encodeURIComponent(searchQuery(p));a1.textContent='🗺️ 카카오맵에서 찾기'}
+  const a2=document.createElement('a');a2.target='_blank';a2.rel='noopener';
+  a2.href='https://map.naver.com/p/search/'+encodeURIComponent(searchQuery(p));a2.textContent='🟢 네이버 지도에서 찾기';
+  links.append(a1,a2);result.appendChild(links);
+  if(kakaoReady&&p.x&&p.y)showMap(p);
+}
+function showMap(p){
+  try{
+    mapBox.style.display='block';
+    const pos=new kakao.maps.LatLng(p.y,p.x);
+    const map=new kakao.maps.Map(mapBox,{center:pos,level:3});
+    new kakao.maps.Marker({map,position:pos});
+  }catch(e){mapBox.style.display='none'}
+}
+
+refreshWheel();updateUse();
+</script>
+</body>
+</html>
